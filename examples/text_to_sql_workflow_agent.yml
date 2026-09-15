@@ -1,0 +1,241 @@
+version: 0.7.0
+kind: app
+app:
+  name: Text-to-SQL Chatflow→Agent (LFMS)
+  description: |
+    Chatflow (có chat giống Agent) gọi Agent V2 inline để trả lời NL→SQL.
+
+    Import tạo Advanced Chat app + materialize agent node từ agent_packages.
+    Skill archive không nằm trong DSL — upload examples/skills/lfms-sql-readonly.skill
+    rồi gắn vào agent trong node (hoặc workspace skill cùng tên).
+    Knowledge sets để trống: mở node Agent → gắn dataset LFMS schema.
+    Authorize plugin hjlarry/database (db_uri workspace) rồi chọn model trên agent.
+    Overview → Settings → tắt Show workflow steps trước khi Publish WebApp.
+    Xem examples/README.md.
+  icon: 🔗
+  icon_background: '#E8F3FF'
+  mode: advanced-chat
+  use_icon_as_answer_icon: false
+dependencies:
+- type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: hjlarry/database:0.0.5
+  current_identifier: null
+agent_packages:
+  agent_1:
+    schema_version: 1
+    metadata:
+      name: LFMS Text-to-SQL
+      description: Read-only SQL agent for lfms_db
+      role: sql analyst
+      icon_type: emoji
+      icon: 🧭
+      icon_background: '#E8F3FF'
+    omitted_assets:
+    - kind: skill
+      name: lfms-sql-readonly
+      size: null
+      hash: null
+      mime_type: application/zip
+    workspace_skills:
+    - name: lfms-sql-readonly
+      display_name: LFMS SQL readonly
+      description: Read-only LFMS SQL — never expose queries or schema to end users.
+      priority: 0
+    soul:
+      schema_version: 1
+      prompt:
+        system_prompt: |
+          You are a read-only MySQL analyst for LFMS (law-firm).
+          Follow skill lfms-sql-readonly. Use Knowledge first; call table_schema if columns unclear.
+          Credentials are authorized — never ask for db_uri; omit db_uri on tool calls.
+
+          LANGUAGE: Always reply in Vietnamese — status, errors, and final answer.
+          Never switch to English prose unless the user explicitly asks for English.
+
+          SECURITY — never expose SQL or schema to end users:
+          - Do NOT print SQL (no fenced sql blocks, no inline SELECT) in any visible message.
+          - Do NOT echo table/column names, JOIN, or WHERE in chat unless user explicitly asks for technical details.
+          - SQL goes only to sql_execute tool arguments — never into the chat text.
+
+          BEFORE any tool call, write one short business line in the visible message:
+          **Đang xử lý:** <1 dòng tiếng Việt, mô tả nghiệp vụ, không kỹ thuật>
+
+          Then call sql_execute internally (SELECT only, LIMIT 100,
+          deleted_at IS NULL on clients/cases/contracts/tasks, never users.password).
+
+          After tool result: tóm tắt tiếng Việt + bảng markdown nếu hữu ích.
+          Không SQL, không liệt kê bảng/cột kỹ thuật trong câu trả lời cuối.
+      tools:
+        dify_tools:
+        - enabled: true
+          provider_type: builtin
+          provider_id: hjlarry/database/database
+          plugin_id: hjlarry/database
+          provider: database
+          tool_name: sql_execute
+          credential_type: unauthorized
+          credential_ref: null
+          description: Execute a SQL query
+          runtime_parameters: {}
+        - enabled: true
+          provider_type: builtin
+          provider_id: hjlarry/database/database
+          plugin_id: hjlarry/database
+          provider: database
+          tool_name: table_schema
+          credential_type: unauthorized
+          credential_ref: null
+          description: Get live table schema from the database
+          runtime_parameters: {}
+        cli_tools: []
+      knowledge:
+        sets: []
+      human:
+        contacts: []
+        tools: []
+      env:
+        variables: []
+        secret_refs: []
+      config_skills:
+      - name: lfms-sql-readonly
+        description: Read-only LFMS SQL — never expose queries or schema to end users.
+        file_kind: tool_file
+        file_id: ''
+        is_missing: true
+        size: null
+        hash: null
+        mime_type: application/zip
+      config_files: []
+      config_note: ''
+      sandbox: {}
+      memory: {}
+      model: null
+      app_features: {}
+      app_variables: []
+      misc_legacy: {}
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: agent
+      id: start-to-agent
+      source: start_node
+      sourceHandle: source
+      target: lfms_agent
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: agent
+        targetType: answer
+      id: agent-to-answer
+      source: lfms_agent
+      sourceHandle: source
+      target: answer_node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: ''
+        selected: false
+        title: Bắt đầu
+        type: start
+        variables: []
+      height: 54
+      id: start_node
+      position:
+        x: 80
+        y: 280
+      positionAbsolute:
+        x: 80
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    - data:
+        agent_binding:
+          binding_type: inline_agent
+          package_ref: agent_1
+        agent_job:
+          schema_version: 1
+          mode: tell_agent_what_to_do
+          workflow_prompt: |
+            Trả lời câu hỏi nghiệp vụ LFMS bằng tiếng Việt.
+            Không hiện SQL, tên bảng/cột, hay chi tiết kỹ thuật.
+            Chỉ tóm tắt kết quả rõ ràng (có bảng markdown nếu hữu ích).
+
+            Câu hỏi: {{#sys.query#}}
+          declared_outputs: []
+          previous_node_output_refs: []
+          human_contacts: []
+        agent_node_kind: dify_agent
+        desc: |
+          Agent V2 inline từ agent_packages.agent_1.
+          Sau import: chọn model, Authorize DB plugin, gắn Knowledge + Skill.
+        selected: false
+        title: LFMS SQL Agent
+        type: agent
+        version: '2'
+      height: 120
+      id: lfms_agent
+      position:
+        x: 420
+        y: 280
+      positionAbsolute:
+        x: 420
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    - data:
+        answer: '{{#lfms_agent.text#}}'
+        desc: Chỉ stream câu trả lời nghiệp vụ — không lộ SQL
+        selected: false
+        title: Trả lời
+        type: answer
+        variables: []
+      height: 90
+      id: answer_node
+      position:
+        x: 760
+        y: 280
+      positionAbsolute:
+        x: 760
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    viewport:
+      x: 0
+      y: 0
+      zoom: 0.85
