@@ -1,23 +1,22 @@
 # Table: organizations
 
-Tổ chức / công ty luật / tenant. Tiếng Việt: tổ chức, văn phòng, firm, org. KHÔNG nhầm với clients.
+Tổ chức / tenant. Chỉ query khi người dùng hỏi danh sách / thông tin tổ chức. **Không** JOIN bảng này để lấy tên văn phòng trên câu hỏi nghiệp vụ (khách, hợp đồng, vụ) — dễ `TABLE_DENIED` với luật sư/kế toán/nhân viên.
 
-Columns:
-- id (bigint, PK)
-- name (varchar) — tên hiển thị
+Columns (được phép):
+
+- id (bigint, PK) — LFMS lọc tenant bằng `id = current org` khi module Organizations bật
+- name (varchar)
 - legal_name (varchar)
 - tax_code (varchar)
 - slug (varchar)
-- is_active (tinyint, 1 = đang hoạt động)
-- created_at (timestamp)
-- deleted_at (timestamp) — always `WHERE deleted_at IS NULL`
+- is_active (tinyint)
+- created_at, updated_at
+- deleted_at — luôn `deleted_at IS NULL`
 
-Không SELECT smtp_password.
+Cấm SELECT: smtp_password, smtp_username, và mọi cột SMTP/branding bí mật.
 
-Nhân viên: JOIN users ON users.organization_id = organizations.id
-Nhiều-nhiều (hiếm): organization_user (organization_id, user_id)
+Không có cột nhân viên trên bảng này. Đếm nhân sự: bảng `users` (module Users), không JOIN organizations nếu Users-only.
 
-Sample questions:
-- Tổ chức nào có nhiều nhân viên nhất
-- Danh sách tổ chức đang active
-- Tổ chức theo mã số thuế
+Sample:
+
+- Danh sách tổ chức đang hoạt động → SELECT id, name, tax_code, is_active FROM organizations WHERE deleted_at IS NULL AND is_active = 1 LIMIT 100

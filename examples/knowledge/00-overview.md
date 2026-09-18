@@ -1,31 +1,46 @@
 # LFMS schema overview
 
-Law-firm MySQL `lfms_db`. Soft-delete: business tables có `deleted_at` thì luôn `deleted_at IS NULL`.
+Law-firm MySQL `lfms_db`. Soft-delete: bảng có `deleted_at` thì luôn `deleted_at IS NULL`.
+
+LFMS tự chèn lọc tenant (`organization_id`) — SQL sinh ra **không** JOIN `organizations` chỉ để biết văn phòng.
 
 ## Glossary (tiếng Việt → bảng)
 
-- tổ chức / công ty luật / tenant / văn phòng → **organizations** (name)
-- nhân viên / nhân sự / luật sư / staff → **users** (users.organization_id)
-- phòng ban → **departments**
-- khách hàng / lead → **clients** (không phải organizations)
-- vụ / hồ sơ → **cases**
-- hợp đồng → **contracts**
-- công việc → **tasks**
+- tổ chức / văn phòng / tenant → **organizations** (chỉ khi hỏi danh sách tổ chức; luật sư/kế toán thường **không** được JOIN bảng này)
+- nhân viên / luật sư / staff → **users**
+- phòng ban → **departments** (Catalog)
+- loại vụ → **case_types** (Catalog)
+- khách hàng → **clients** WHERE `profile_kind = 'client'`
+- lead / tiềm năng → **clients** WHERE `profile_kind = 'lead'`
+- vụ tố tụng → **cases** WHERE `category = 'litigation'`
+- vụ dịch vụ pháp lý → **cases** WHERE `category = 'legal_service'`
+- hợp đồng / giá trị HĐ / doanh thu HĐ → **contracts.payment_amount** (không `total_amount`)
+- đợt thu / lần thu tiền → **payments** (qua `contract_id`)
+- công việc → **tasks**; người làm → **task_assignees**
+- tài liệu → **documents**
+- công văn → **official_dispatches**
+- lịch nội bộ → **custom_calendar_events**
+- nhật ký hệ thống → **audit_logs**
+- báo cáo tổng hợp → **report_daily_finance / cases / leads / staff** (ưu tiên hơn SUM bảng gốc)
+- quy trình → **workflow_definitions** (không query `workflow_versions`)
+- sổ tay → **handbook_articles**, **handbook_categories**
 
-## Tables
+## Bảng cấm (không query)
 
-- organizations: tenant
-- users: staff (không có deleted_at; không SELECT password)
-- clients, cases, contracts, tasks: nghiệp vụ + deleted_at
+`service_plans`, `organization_subscriptions`, `case_checklist_items`, `workflow_versions`, `workflow_keys`, `vanna_*`, `password_reset_tokens`, `sessions`, `roles`, `role_user`, mọi bảng `zl_*`.
 
-## Joins
+## Joins tối thiểu (chỉ khi cần cột từ bảng đó)
 
-- users.organization_id = organizations.id
 - cases.client_id = clients.id
 - contracts.client_id = clients.id
 - contracts.case_id = cases.id
+- payments.contract_id = contracts.id
 - tasks.case_id = cases.id
-- cases.lead_lawyer_id = users.id
+- task_assignees.task_id = tasks.id
+- cases.lead_lawyer_id = users.id (chỉ khi cần tên luật sư và module Users được phép)
 - clients.assigned_to = users.id
+- handbook_articles.category_id = handbook_categories.id
 
-LIMIT 100 trừ COUNT/SUM/AVG. Không bịa bảng ngoài docs đã retrieve.
+Không JOIN organizations / departments / case_types chỉ để lấy tên — trả id.
+
+LIMIT 100 trừ COUNT/SUM/AVG. Không subquery, UNION, WITH, SELECT *.

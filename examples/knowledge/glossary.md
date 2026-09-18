@@ -1,33 +1,32 @@
 # Từ điển nghiệp vụ → bảng LFMS
 
-Tên bảng tiếng Anh. Câu hỏi tiếng Việt. Không đoán bảng khác nếu đã có mapping.
+Tên bảng tiếng Anh. Câu hỏi tiếng Việt. Không đoán bảng ngoài mapping.
 
-| Người hỏi | Bảng | Ý nghĩa |
-|---|---|---|
-| tổ chức, công ty luật, tenant, văn phòng, firm, org | organizations | Một đơn vị/tenant. Tên: organizations.name |
-| nhân viên, nhân sự, luật sư, staff, lawyer, user, người dùng | users | Nhân sự thuộc tổ chức. users.organization_id |
-| phòng ban, bộ phận | departments | users.department_id |
-| khách hàng, khách, lead, client | clients | Không phải tổ chức. profile_kind client/lead |
-| vụ, hồ sơ, case | cases | Vụ việc của client |
-| hợp đồng | contracts | Hợp đồng |
-| công việc, task | tasks | Task, thường gắn case |
+| Người hỏi                               | Bảng                   | Ghi chú                                              |
+| --------------------------------------- | ---------------------- | ---------------------------------------------------- |
+| tổ chức, văn phòng, tenant, firm        | organizations          | Chỉ khi hỏi danh sách tổ chức. Không JOIN trang trí. |
+| nhân viên, luật sư, staff               | users                  | status: active / away / inactive. Cấm password.      |
+| phòng ban                               | departments            | Catalog. Không JOIN chỉ để lấy tên.                  |
+| loại vụ, lĩnh vực vụ                    | case_types             | Catalog. cases.case_type_id đủ.                      |
+| khách hàng                              | clients                | `profile_kind = 'client'`                            |
+| lead, tiềm năng                         | clients                | `profile_kind = 'lead'`                              |
+| vụ, hồ sơ tố tụng                       | cases                  | `category = 'litigation'`                            |
+| vụ dịch vụ pháp lý                      | cases                  | `category = 'legal_service'`                         |
+| hợp đồng, giá trị HĐ, doanh thu HĐ      | contracts              | Cột tiền: **payment_amount**                         |
+| đợt thu, lần thu, installment           | payments               | `payments.contract_id`                               |
+| công việc                               | tasks                  | Người làm: **task_assignees**, không `assigned_to`   |
+| tài liệu, file đính kèm                 | documents              | morph `documentable_type/_id`                        |
+| công văn đi/đến                         | official_dispatches    | direction inbound/outbound                           |
+| lịch, sự kiện lịch                      | custom_calendar_events |                                                      |
+| nhật ký, audit                          | audit_logs             |                                                      |
+| báo cáo tài chính / vụ / lead / nhân sự | report_daily_*         | Ưu tiên tổng hợp                                     |
+| quy trình giai đoạn                     | workflow_definitions   | Không `workflow_versions`                            |
+| sổ tay, bài viết nội bộ                 | handbook_articles      |                                                      |
 
-## Câu mẫu
+## Câu mẫu (tối thiểu bảng)
 
-- "Tổ chức nào có nhiều nhân viên nhất" → COUNT users GROUP BY organizations
-- "Bao nhiêu luật sư active" → users WHERE status = 'active'
-- "Danh sách khách hàng" → clients, không phải organizations
-
-## SQL đếm nhân viên theo tổ chức
-
-```sql
-SELECT o.id, o.name, COUNT(u.id) AS staff_count
-FROM organizations o
-INNER JOIN users u ON u.organization_id = o.id
-WHERE o.deleted_at IS NULL
-GROUP BY o.id, o.name
-ORDER BY staff_count DESC
-LIMIT 1
-```
-
-Không đếm clients.organization_id — đó là khách thuộc tenant, không phải nhân viên.
+- "Danh sách khách hàng" → `clients` WHERE profile_kind='client' AND deleted_at IS NULL
+- "Doanh thu theo khách" → `contracts` JOIN `clients` (không JOIN organizations)
+- "Tổng thu tháng này" → ưu tiên `report_daily_finance` SUM(collected_in); không SUM receivable_*
+- "Đợt thu chưa thanh toán" → `payments` WHERE status không phải paid
+- "Công việc quá hạn" → `tasks` WHERE due_date < CURDATE() AND progress < 100

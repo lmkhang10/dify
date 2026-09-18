@@ -6,7 +6,7 @@ app:
     Agent v2: Skill quy tắc SQL + Knowledge schema + plugin database.
 
     Import tạo Agent App. Skill archive không nằm trong DSL — upload
-    examples/skills/lfms-sql-readonly.skill rồi gắn vào Agent.
+    examples/skills/lfms-sql-guarded.skill rồi gắn vào Agent.
     Knowledge sets để trống: gắn dataset LFMS schema trong composer.
     Authorize plugin hjlarry/database (db_uri workspace) rồi chọn model.
     Khách không nhập connection string — xem examples/README.md.
@@ -15,10 +15,10 @@ app:
   mode: agent
   use_icon_as_answer_icon: false
 dependencies:
-- type: marketplace
-  value:
-    marketplace_plugin_unique_identifier: hjlarry/database:0.0.5
-  current_identifier: null
+  - type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: hjlarry/database:0.0.5
+    current_identifier: null
 agent:
   package_ref: agent_1
 agent_packages:
@@ -32,22 +32,22 @@ agent_packages:
       icon: 🧭
       icon_background: '#E8F3FF'
     omitted_assets:
-    - kind: skill
-      name: lfms-sql-readonly
-      size: null
-      hash: null
-      mime_type: application/zip
+      - kind: skill
+        name: lfms-sql-guarded
+        size: null
+        hash: null
+        mime_type: application/zip
     workspace_skills:
-    - name: lfms-sql-readonly
-      display_name: LFMS SQL readonly
-      description: Read-only LFMS SQL — never expose queries or schema to end users.
-      priority: 0
+      - name: lfms-sql-guarded
+        display_name: LFMS SQL guarded
+        description: Read-only LFMS SQL + Policy (no super-admin, no secrets).
+        priority: 0
     soul:
       schema_version: 1
       prompt:
         system_prompt: |
           You are a read-only MySQL analyst for LFMS (law-firm).
-          Follow skill lfms-sql-readonly. Use Knowledge first; call table_schema if columns unclear.
+          Follow skill lfms-sql-guarded (Policy block). Use Knowledge first; call table_schema if columns unclear.
           Credentials are authorized — never ask for db_uri; omit db_uri on tool calls.
 
           LANGUAGE: Always reply in Vietnamese — status, errors, and final answer.
@@ -68,26 +68,26 @@ agent_packages:
           Không SQL, không liệt kê bảng/cột kỹ thuật trong câu trả lời cuối.
       tools:
         dify_tools:
-        - enabled: true
-          provider_type: builtin
-          provider_id: hjlarry/database/database
-          plugin_id: hjlarry/database
-          provider: database
-          tool_name: sql_execute
-          credential_type: unauthorized
-          credential_ref: null
-          description: Execute a SQL query
-          runtime_parameters: {}
-        - enabled: true
-          provider_type: builtin
-          provider_id: hjlarry/database/database
-          plugin_id: hjlarry/database
-          provider: database
-          tool_name: table_schema
-          credential_type: unauthorized
-          credential_ref: null
-          description: Get live table schema from the database
-          runtime_parameters: {}
+          - enabled: true
+            provider_type: builtin
+            provider_id: hjlarry/database/database
+            plugin_id: hjlarry/database
+            provider: database
+            tool_name: sql_execute
+            credential_type: unauthorized
+            credential_ref: null
+            description: Execute a SQL query
+            runtime_parameters: {}
+          - enabled: true
+            provider_type: builtin
+            provider_id: hjlarry/database/database
+            plugin_id: hjlarry/database
+            provider: database
+            tool_name: table_schema
+            credential_type: unauthorized
+            credential_ref: null
+            description: Get live table schema from the database
+            runtime_parameters: {}
         cli_tools: []
       knowledge:
         sets: []
@@ -98,14 +98,14 @@ agent_packages:
         variables: []
         secret_refs: []
       config_skills:
-      - name: lfms-sql-readonly
-        description: Read-only LFMS SQL — never expose queries or schema to end users.
-        file_kind: tool_file
-        file_id: ''
-        is_missing: true
-        size: null
-        hash: null
-        mime_type: application/zip
+        - name: lfms-sql-guarded
+          description: Read-only LFMS SQL + Policy (no super-admin, no secrets).
+          file_kind: tool_file
+          file_id: ''
+          is_missing: true
+          size: null
+          hash: null
+          mime_type: application/zip
       config_files: []
       config_note: ''
       sandbox: {}

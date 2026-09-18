@@ -1,128 +1,58 @@
-version: 0.7.0
-kind: app
 app:
-  name: Text-to-SQL Chatflow→Agent (LFMS)
-  description: |
-    Chatflow (có chat giống Agent) gọi Agent V2 inline để trả lời NL→SQL.
+  description: 'Advanced Chat: Knowledge → LLM (SQL) → LFMS SQL Gateway → tóm tắt.
 
-    Import tạo Advanced Chat app + materialize agent node từ agent_packages.
-    Skill archive không nằm trong DSL — upload examples/skills/lfms-sql-readonly.skill
-    rồi gắn vào agent trong node (hoặc workspace skill cùng tên).
-    Knowledge sets để trống: mở node Agent → gắn dataset LFMS schema.
-    Authorize plugin hjlarry/database (db_uri workspace) rồi chọn model trên agent.
-    Overview → Settings → tắt Show workflow steps trước khi Publish WebApp.
-    Xem examples/README.md.
+
+    LFMS chạy policy + execute DB — xem examples/docs/lfms-sql-policy-api.md.
+
+
+    Sau import:
+
+    1. Knowledge Retrieval → dataset LFMS (examples/knowledge/)
+
+    2. Chọn model trên LLM nodes
+
+    3. Workflow → Environment → DIFY_LFMS_HMAC_SECRET
+
+    4. Embed LFMS: lfms_token + lfms_api_base (hidden); SSRF allowlist domain (docs
+    §5)
+
+    5. Overview → tắt Show workflow steps → Publish WebApp
+
+
+    Không cần plugin database / credential MySQL trên Dify.
+
+    '
   icon: 🔗
   icon_background: '#E8F3FF'
+  icon_type: emoji
   mode: advanced-chat
+  name: Text-to-SQL Chatflow (LFMS)
   use_icon_as_answer_icon: false
 dependencies:
-- type: marketplace
-  value:
-    marketplace_plugin_unique_identifier: hjlarry/database:0.0.5
-  current_identifier: null
-agent_packages:
-  agent_1:
-    schema_version: 1
-    metadata:
-      name: LFMS Text-to-SQL
-      description: Read-only SQL agent for lfms_db
-      role: sql analyst
-      icon_type: emoji
-      icon: 🧭
-      icon_background: '#E8F3FF'
-    omitted_assets:
-    - kind: skill
-      name: lfms-sql-readonly
-      size: null
-      hash: null
-      mime_type: application/zip
-    workspace_skills:
-    - name: lfms-sql-readonly
-      display_name: LFMS SQL readonly
-      description: Read-only LFMS SQL — never expose queries or schema to end users.
-      priority: 0
-    soul:
-      schema_version: 1
-      prompt:
-        system_prompt: |
-          You are a read-only MySQL analyst for LFMS (law-firm).
-          Follow skill lfms-sql-readonly. Use Knowledge first; call table_schema if columns unclear.
-          Credentials are authorized — never ask for db_uri; omit db_uri on tool calls.
-
-          LANGUAGE: Always reply in Vietnamese — status, errors, and final answer.
-          Never switch to English prose unless the user explicitly asks for English.
-
-          SECURITY — never expose SQL or schema to end users:
-          - Do NOT print SQL (no fenced sql blocks, no inline SELECT) in any visible message.
-          - Do NOT echo table/column names, JOIN, or WHERE in chat unless user explicitly asks for technical details.
-          - SQL goes only to sql_execute tool arguments — never into the chat text.
-
-          BEFORE any tool call, write one short business line in the visible message:
-          **Đang xử lý:** <1 dòng tiếng Việt, mô tả nghiệp vụ, không kỹ thuật>
-
-          Then call sql_execute internally (SELECT only, LIMIT 100,
-          deleted_at IS NULL on clients/cases/contracts/tasks, never users.password).
-
-          After tool result: tóm tắt tiếng Việt + bảng markdown nếu hữu ích.
-          Không SQL, không liệt kê bảng/cột kỹ thuật trong câu trả lời cuối.
-      tools:
-        dify_tools:
-        - enabled: true
-          provider_type: builtin
-          provider_id: hjlarry/database/database
-          plugin_id: hjlarry/database
-          provider: database
-          tool_name: sql_execute
-          credential_type: unauthorized
-          credential_ref: null
-          description: Execute a SQL query
-          runtime_parameters: {}
-        - enabled: true
-          provider_type: builtin
-          provider_id: hjlarry/database/database
-          plugin_id: hjlarry/database
-          provider: database
-          tool_name: table_schema
-          credential_type: unauthorized
-          credential_ref: null
-          description: Get live table schema from the database
-          runtime_parameters: {}
-        cli_tools: []
-      knowledge:
-        sets: []
-      human:
-        contacts: []
-        tools: []
-      env:
-        variables: []
-        secret_refs: []
-      config_skills:
-      - name: lfms-sql-readonly
-        description: Read-only LFMS SQL — never expose queries or schema to end users.
-        file_kind: tool_file
-        file_id: ''
-        is_missing: true
-        size: null
-        hash: null
-        mime_type: application/zip
-      config_files: []
-      config_note: ''
-      sandbox: {}
-      memory: {}
-      model: null
-      app_features: {}
-      app_variables: []
-      misc_legacy: {}
+  - current_identifier: null
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: langgenius/bedrock:0.0.84@7d913a7ffb73e390092c5a34f42c574c4020237a1d81be10067d0441ba172eee
+      version: null
+kind: app
+version: 0.7.0
 workflow:
   conversation_variables: []
-  environment_variables: []
+  environment_variables:
+    - description: HMAC secret chung với LFMS (DIFY_LFMS_HMAC_SECRET)
+      id: b2c3d4e5-0002-4000-8000-000000000001
+      name: DIFY_LFMS_HMAC_SECRET
+      selector:
+        - env
+        - DIFY_LFMS_HMAC_SECRET
+      value: ''
+      value_type: secret
   features:
     file_upload:
       enabled: false
-    opening_statement: ''
+    opening_statement: 'Gửi một tin (ví dụ: ping) để nhận chẩn đoán lfms_token / lfms_api_base nếu phiên không hợp lệ.'
     retriever_resource:
-      enabled: false
+      enabled: true
     sensitive_word_avoidance:
       enabled: false
     speech_to_text:
@@ -132,110 +62,1795 @@ workflow:
       enabled: false
     text_to_speech:
       enabled: false
+      language: ''
+      voice: ''
   graph:
     edges:
-    - data:
-        isInIteration: false
-        isInLoop: false
-        sourceType: start
-        targetType: agent
-      id: start-to-agent
-      source: start_node
-      sourceHandle: source
-      target: lfms_agent
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInIteration: false
-        isInLoop: false
-        sourceType: agent
-        targetType: answer
-      id: agent-to-answer
-      source: lfms_agent
-      sourceHandle: source
-      target: answer_node
-      targetHandle: target
-      type: custom
-      zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: start
+          targetType: code
+        id: start-to-validate-embed
+        source: start_node
+        sourceHandle: source
+        target: validate_embed
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: if-else
+        id: validate-to-embed-guard
+        source: validate_embed
+        sourceHandle: source
+        target: embed_guard
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: knowledge-retrieval
+        id: embed-guard-true-to-kb
+        source: embed_guard
+        sourceHandle: 'true'
+        target: knowledge_retrieval
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: answer
+        id: embed-guard-false-to-reject
+        source: embed_guard
+        sourceHandle: 'false'
+        target: answer_embed_rejected
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: knowledge-retrieval
+          targetType: code
+        id: kb-to-format
+        source: knowledge_retrieval
+        sourceHandle: source
+        target: format_schema
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: llm
+        id: format-to-llm
+        source: format_schema
+        sourceHandle: source
+        target: llm_sql_generator
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: llm
+          targetType: code
+        id: llm-to-build-execute
+        source: llm_sql_generator
+        sourceHandle: source
+        target: build_execute_request
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: http-request
+        id: build-to-lfms-http
+        source: build_execute_request
+        sourceHandle: source
+        target: lfms_execute_http
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: http-request
+          targetType: code
+        id: lfms-http-to-parse
+        source: lfms_execute_http
+        sourceHandle: source
+        target: parse_execute_response
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: if-else
+        id: parse-to-router
+        source: parse_execute_response
+        sourceHandle: source
+        target: result_router
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: llm
+        id: router-true-to-summarize
+        source: result_router
+        sourceHandle: 'true'
+        target: llm_summarize
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: llm
+        id: router-retry-to-repair
+        source: result_router
+        sourceHandle: retry
+        target: llm_sql_repair
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: code
+        id: router-false-to-format-reject
+        source: result_router
+        sourceHandle: 'false'
+        target: format_reject
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: llm
+          targetType: answer
+        id: summarize-to-answer
+        source: llm_summarize
+        sourceHandle: source
+        target: answer_success
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: answer
+        id: format-reject-to-answer
+        source: format_reject
+        sourceHandle: source
+        target: answer_rejected
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: llm
+          targetType: code
+        id: repair-to-build
+        source: llm_sql_repair
+        sourceHandle: source
+        target: build_execute_request_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: http-request
+        id: retry-build-to-http
+        source: build_execute_request_retry
+        sourceHandle: source
+        target: lfms_execute_http_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: http-request
+          targetType: code
+        id: retry-http-to-parse
+        source: lfms_execute_http_retry
+        sourceHandle: source
+        target: parse_execute_response_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: if-else
+        id: retry-parse-to-router
+        source: parse_execute_response_retry
+        sourceHandle: source
+        target: retry_router
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: llm
+        id: retry-true-to-summarize
+        source: retry_router
+        sourceHandle: 'true'
+        target: llm_summarize_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: code
+        id: retry-false-to-format
+        source: retry_router
+        sourceHandle: 'false'
+        target: format_reject_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: llm
+          targetType: answer
+        id: summarize-retry-to-answer
+        source: llm_summarize_retry
+        sourceHandle: source
+        target: answer_success_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: answer
+        id: format-reject-retry-to-answer
+        source: format_reject_retry
+        sourceHandle: source
+        target: answer_rejected_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
     nodes:
-    - data:
-        desc: ''
+      - data:
+          desc: lfms_token do LFMS truyền qua embed URL (hidden input)
+          selected: false
+          title: Bắt đầu
+          type: start
+          variables:
+            - default: ''
+              hide: true
+              hint: ''
+              label: lfms_token
+              max_length: 8000
+              options: []
+              placeholder: ''
+              required: false
+              type: paragraph
+              variable: lfms_token
+            - default: ''
+              hide: true
+              hint: Base URL LFMS, không slash cuối. VD https://lfms-dev.truyenfox.net
+                hoặc http://host.docker.internal:8010
+              label: lfms_api_base
+              max_length: 8000
+              options: []
+              placeholder: ''
+              required: false
+              type: paragraph
+              variable: lfms_api_base
+        height: 179
+        id: start_node
+        position:
+          x: 80
+          y: 300
+        positionAbsolute:
+          x: 80
+          y: 300
         selected: false
-        title: Bắt đầu
-        type: start
-        variables: []
-      height: 54
-      id: start_node
-      position:
-        x: 80
-        y: 280
-      positionAbsolute:
-        x: 80
-        y: 280
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 244
-    - data:
-        agent_binding:
-          binding_type: inline_agent
-          package_ref: agent_1
-        agent_job:
-          schema_version: 1
-          mode: tell_agent_what_to_do
-          workflow_prompt: |
-            Trả lời câu hỏi nghiệp vụ LFMS bằng tiếng Việt.
-            Không hiện SQL, tên bảng/cột, hay chi tiết kỹ thuật.
-            Chỉ tóm tắt kết quả rõ ràng (có bảng markdown nếu hữu ích).
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          code: |
+            import base64
+            import gzip
+            import json
+            import zlib
 
-            Câu hỏi: {{#sys.query#}}
-          declared_outputs: []
-          previous_node_output_refs: []
-          human_contacts: []
-        agent_node_kind: dify_agent
-        desc: |
-          Agent V2 inline từ agent_packages.agent_1.
-          Sau import: chọn model, Authorize DB plugin, gắn Knowledge + Skill.
+            def _as_text(value):
+                if value is None:
+                    return ""
+                if isinstance(value, (bytes, bytearray)):
+                    return bytes(value).decode("utf-8", "replace")
+                return str(value).strip()
+
+            def _maybe_decompress(value):
+                raw = _as_text(value)
+                if not raw:
+                    return "", "empty"
+                if raw.startswith(("eyJ", "http://", "https://")):
+                    return raw, "plain"
+                try:
+                    padded = raw + "=" * ((4 - len(raw) % 4) % 4)
+                    blob = base64.b64decode(padded.replace("-", "+").replace("_", "/"), validate=False)
+                except Exception as exc:
+                    return raw, "b64_fail:" + type(exc).__name__
+                if blob[:2] != b"\x1f\x8b":
+                    return raw, "not_gzip"
+                try:
+                    return gzip.decompress(blob).decode("utf-8").strip(), "gzip"
+                except Exception as gzip_exc:
+                    header = 10
+                    if len(blob) > 10 and blob[3] & 0x08:
+                        z = blob.find(b"\x00", 10)
+                        header = z + 1 if z != -1 else 10
+                    payload = blob[header:-8] if len(blob) > header + 8 else blob[header:]
+                    try:
+                        out = zlib.decompress(payload, -zlib.MAX_WBITS)
+                        return out.decode("utf-8").strip(), "gzip_ignore_crc"
+                    except Exception:
+                        try:
+                            d = zlib.decompressobj(-zlib.MAX_WBITS)
+                            out = d.decompress(payload)
+                            text = out.decode("utf-8", "replace").strip()
+                            if text:
+                                return text, "gzip_truncated:" + type(gzip_exc).__name__
+                        except Exception:
+                            pass
+                    return raw, "gzip_fail:" + type(gzip_exc).__name__
+
+            def _is_jwt(token):
+                parts = (token or "").split(".")
+                if len(parts) != 3 or not all(parts):
+                    return False
+                if len(parts[2]) < 40:
+                    return False
+                try:
+                    padded = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
+                    json.loads(base64.urlsafe_b64decode(padded))
+                    return True
+                except Exception:
+                    return False
+
+            def _dump(token_in, base_in, token, base, token_how, base_how, code, reason):
+                lines = [
+                    "Không khả thi khi sử dụng trực tiếp!" if code else "Embed OK — giá trị đã giải nén:",
+                    "",
+                ]
+                if code:
+                    lines += ["Mã: " + code, "Chi tiết: " + reason, ""]
+                lines += [
+                    "=== lfms_token đã giải nén (decode=" + token_how + ") ===",
+                    token or "(rỗng)",
+                    "",
+                    "=== lfms_api_base đã giải nén (decode=" + base_how + ") ===",
+                    base or "(rỗng)",
+                    "",
+                    "=== raw Start.lfms_token ===",
+                    _as_text(token_in) or "(rỗng)",
+                    "",
+                    "=== raw Start.lfms_api_base ===",
+                    _as_text(base_in) or "(rỗng)",
+                ]
+                return "\n".join(lines)
+
+            def _reject(code, reason, token_in, base_in, token, base, token_how, base_how):
+                return {
+                    "embed_ok": "false",
+                    "error_message": _dump(token_in, base_in, token, base, token_how, base_how, code, reason),
+                    "embed_token": token or "",
+                    "api_base": base or "",
+                }
+
+            def main(lfms_token=None, lfms_api_base=None):
+                token_in = lfms_token
+                base_in = lfms_api_base
+                token, token_how = _maybe_decompress(token_in)
+                base, base_how = _maybe_decompress(base_in)
+                base = (base or "").rstrip("/")
+
+                if token_how.startswith("gzip_truncated") or token_how.startswith("gzip_fail"):
+                    return _reject(
+                        "EMBED_BAD_JWT",
+                        "lfms_token gzip bị cắt — chữ ký JWT hỏng, LFMS trả TOKEN_INVALID.",
+                        token_in, base_in, token, base, token_how, base_how,
+                    )
+
+                if not _as_text(token_in):
+                    return _reject(
+                        "EMBED_MISSING_TOKEN",
+                        "Workflow không nhận lfms_token (inputs rỗng). Thường do iframe /chat/ hoặc embed.js gzip lỗi rồi nuốt param.",
+                        token_in, base_in, token, base, token_how, base_how,
+                    )
+                if not _as_text(base_in):
+                    return _reject(
+                        "EMBED_MISSING_API_BASE",
+                        "Workflow không nhận lfms_api_base.",
+                        token_in, base_in, token, base, token_how, base_how,
+                    )
+                if not base.startswith(("http://", "https://")):
+                    return _reject(
+                        "EMBED_BAD_API_BASE",
+                        "lfms_api_base sau giải nén không phải URL http(s).",
+                        token_in, base_in, token, base, token_how, base_how,
+                    )
+                if not _is_jwt(token):
+                    return _reject(
+                        "EMBED_BAD_JWT",
+                        "Token không phải JWT hợp lệ (3 đoạn, payload JSON). Gzip lfms_token trên URL CRC fail / stream bị cắt.",
+                        token_in, base_in, token, base, token_how, base_how,
+                    )
+
+                return {
+                    "embed_ok": "true",
+                    "error_message": _dump(token_in, base_in, token, base, token_how, base_how, "", ""),
+                    "embed_token": token,
+                    "api_base": base,
+                }
+          code_language: python3
+          desc: Chặn sớm khi mở /chat trực tiếp hoặc thiếu tham số embed từ LFMS
+          outputs:
+            api_base:
+              children: null
+              type: string
+            embed_ok:
+              children: null
+              type: string
+            embed_token:
+              children: null
+              type: string
+            error_message:
+              children: null
+              type: string
+          selected: false
+          title: Kiểm Tra Embed LFMS
+          type: code
+          variables:
+            - value_selector:
+                - start_node
+                - lfms_token
+              value_type: string
+              variable: lfms_token
+            - value_selector:
+                - start_node
+                - lfms_api_base
+              value_type: string
+              variable: lfms_api_base
+        height: 96
+        id: validate_embed
+        position:
+          x: 280
+          y: 300
+        positionAbsolute:
+          x: 280
+          y: 300
         selected: false
-        title: LFMS SQL Agent
-        type: agent
-        version: '2'
-      height: 120
-      id: lfms_agent
-      position:
-        x: 420
-        y: 280
-      positionAbsolute:
-        x: 420
-        y: 280
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 244
-    - data:
-        answer: '{{#lfms_agent.text#}}'
-        desc: Chỉ stream câu trả lời nghiệp vụ — không lộ SQL
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          cases:
+            - case_id: 'true'
+              conditions:
+                - comparison_operator: is
+                  id: embed-ok-check
+                  value: 'true'
+                  varType: string
+                  variable_selector:
+                    - validate_embed
+                    - embed_ok
+              id: 'true'
+              logical_operator: and
+          desc: Chỉ tiếp tục khi có lfms_token + lfms_api_base hợp lệ
+          selected: false
+          title: Cổng Embed LFMS
+          type: if-else
+        height: 192
+        id: embed_guard
+        position:
+          x: 520
+          y: 300
+        positionAbsolute:
+          x: 520
+          y: 300
         selected: false
-        title: Trả lời
-        type: answer
-        variables: []
-      height: 90
-      id: answer_node
-      position:
-        x: 760
-        y: 280
-      positionAbsolute:
-        x: 760
-        y: 280
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 244
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          answer: '{{#validate_embed.error_message#}}'
+          desc: In nguyên văn token + api_base đã giải nén (không qua LLM)
+          selected: false
+          title: Từ Chối Embed
+          type: answer
+          variables: []
+        height: 131
+        id: answer_embed_rejected
+        position:
+          x: 1020
+          y: 400
+        positionAbsolute:
+          x: 1020
+          y: 400
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          dataset_ids:
+            - pu6UCjlqUcX9QJX6v9Er/nVbfmWgFLu4eSHYOBBwR+We5ICZgRi7OQ8LLxj4C7UM
+          desc: 'Sau import: chọn dataset LFMS (examples/knowledge/)'
+          metadata_filtering_mode: disabled
+          multiple_retrieval_config:
+            reranking_enable: false
+            reranking_mode: weighted_score
+            score_threshold: null
+            top_k: 12
+            weights:
+              keyword_setting:
+                keyword_weight: 0.3
+              vector_setting:
+                embedding_model_name: amazon.titan-embed-text-v2:0
+                embedding_provider_name: langgenius/bedrock/bedrock
+                vector_weight: 0.7
+              weight_type: customized
+          query_attachment_selector: []
+          query_variable_selector:
+            - start_node
+            - sys.query
+          retrieval_mode: multiple
+          selected: false
+          title: Knowledge Retrieval
+          type: knowledge-retrieval
+        height: 134
+        id: knowledge_retrieval
+        position:
+          x: 360
+          y: 300
+        positionAbsolute:
+          x: 360
+          y: 300
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          code: |
+            FALLBACK = """### FALLBACK SCHEMA (KB empty) ###
+            Glossary: khách=clients (profile_kind client|lead); vụ=cases (category litigation|legal_service); HĐ=contracts.payment_amount; đợt thu=payments; việc=tasks + task_assignees
+            KHÔNG JOIN organizations/departments/case_types chỉ để lấy tên. Không subquery/UNION/WITH/SELECT *.
+            Table: clients — id, organization_id, name, profile_kind, type, status, lead_stage, assigned_to, created_by, deleted_at
+            Table: cases — id, code, name, client_id, category, status (new|in_progress|on_hold|closed), held_at, fee_estimate, billing_method, lead_lawyer_id, deleted_at. Cấm cột on_hold boolean.
+            Table: contracts — id, name, type, status, template_id, client_id, case_id, payment_amount, payment_currency, payment_due_date, is_canceled, is_completed, deleted_at
+            Table: tasks — id, title, case_id, created_by, priority, progress, due_date, deleted_at. Không cột status/assigned_to.
+            Table: task_assignees — task_id, user_id
+            Table: payments — contract_id, amount, currency, due_date, status, direction, paid_at
+            Table: users — id, name, position, status (active|away|inactive); cấm password
+            Table: organizations — id, name, is_active, deleted_at; cấm smtp_password; đừng JOIN trang trí
+            JOIN tối thiểu: cases.client_id=clients.id; contracts.client_id=clients.id; payments.contract_id=contracts.id
+            Bảng cấm: service_plans, organization_subscriptions, case_checklist_items, workflow_versions, vanna_*
+            """
+
+            def main(chunks) -> dict:
+                parts = []
+                items = chunks if isinstance(chunks, list) else []
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    title = item.get("title") or ""
+                    content = item.get("content") or ""
+                    if content.strip():
+                        parts.append(f"## {title}\n{content}".strip())
+                schema_docs = "\n\n".join(parts) if parts else FALLBACK
+                return {"schema_docs": schema_docs, "hit_count": len(parts)}
+
+          code_language: python3
+          desc: Ghép chunk KB; fallback nếu chưa gắn dataset
+          outputs:
+            hit_count:
+              children: null
+              type: number
+            schema_docs:
+              children: null
+              type: string
+          selected: false
+          title: Format Schema Docs
+          type: code
+          variables:
+            - value_selector:
+                - knowledge_retrieval
+                - result
+              value_type: array[object]
+              variable: chunks
+        height: 96
+        id: format_schema
+        position:
+          x: 640
+          y: 300
+        positionAbsolute:
+          x: 640
+          y: 300
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          desc: Chỉ sinh SQL — LFMS sẽ policy + execute
+          memory:
+            enabled: false
+            role_prefix:
+              assistant: ''
+              user: ''
+            window:
+              enabled: false
+              size: 10
+          model:
+            completion_params:
+              temperature: 0
+            mode: chat
+            name: anthropic claude
+            provider: langgenius/bedrock/bedrock
+          prompt_template:
+            - id: 0ab6550e-3243-47ab-bf8c-4aa1ed2a0b80
+              role: system
+              text: 'Bạn là chuyên gia SQL chỉ đọc (MySQL LFMS). Map tiếng Việt sang bảng
+                rồi viết SQL tối-thiểu-bảng.
+
+
+                {{#format_schema.schema_docs#}}
+
+
+                QUY TẮC:
+
+                1. Chỉ SELECT. Không INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/GRANT.
+
+                2. Soft-delete: clients/cases/contracts/tasks/official_dispatches/documents/handbook_articles/organizations luôn `deleted_at IS NULL`.
+
+                3. LIMIT 100 trừ COUNT/SUM/AVG.
+
+                4. Không SELECT password, remember_token, smtp_password, is_super_admin,
+                api_token. Không cột cases.on_hold (boolean đã drop — dùng status).
+
+                5. Không SELECT *. Không subquery, UNION, WITH, EXISTS.
+
+                6. Không truy vấn super admin / tài khoản hệ thống.
+
+                7. Chỉ trả SQL trong ```sql ... ```. Không giải thích.
+
+                8. Tối thiểu bảng: không JOIN organizations / departments / case_types
+                chỉ để lấy tên. Tenant do LFMS chèn. Trả id; tóm tắt sẽ nói thuộc văn phòng bạn.
+
+                9. Không JOIN users trừ khi câu hỏi cần tên nhân sự.
+
+                10. Ưu tiên report_daily_* cho tổng hợp. FLOW được SUM; STOCK lấy ngày cuối kỳ, không SUM.
+
+                11. Doanh thu HĐ = contracts.payment_amount. Đợt thu = payments qua contract_id.
+
+                12. clients.profile_kind; cases.category (litigation|legal_service). status vụ: new|in_progress|on_hold|closed.
+
+                13. Cấm JOIN/FROM: service_plans, organization_subscriptions, case_checklist_items,
+                workflow_versions, workflow_keys, vanna_*, roles, password_reset_tokens.
+
+                '
+
+            - id: 1c37b098-a3c5-4128-aa64-1016a14418ed
+              role: user
+              text: '{{#sys.query#}}'
+          selected: false
+          structured_output:
+            enabled: false
+          title: Sinh SQL
+          type: llm
+          variables: []
+          vision:
+            configs:
+              variable_selector: []
+            enabled: false
+        height: 132
+        id: llm_sql_generator
+        position:
+          x: 920
+          y: 300
+        positionAbsolute:
+          x: 920
+          y: 300
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          code: "import hashlib\nimport hmac\nimport json\nimport re\nimport time\n\
+            import uuid\n\nLFMS_EXECUTE_PATH = \"/api/internal/dify/sql/execute\"\n\
+            HTTP_METHOD = \"POST\"\n\ndef _sign(raw_body: str, timestamp: str, nonce:\
+            \ str, secret: str) -> str:\n    body_hash = hashlib.sha256(raw_body.encode(\"\
+            utf-8\")).hexdigest()\n    signing_string = f\"{timestamp}\\n{nonce}\\n{HTTP_METHOD}\\\
+            n{LFMS_EXECUTE_PATH}\\n{body_hash}\"\n    return hmac.new(\n        secret.encode(\"\
+            utf-8\"),\n        signing_string.encode(\"utf-8\"),\n        hashlib.sha256,\n\
+            \    ).hexdigest()\n\ndef main(\n    llm_output: str,\n    lfms_token: str,\n\
+            \    user_query: str,\n    hmac_secret: str,\n) -> dict:\n    text = (llm_output\
+            \ or \"\").strip()\n    match = re.search(r\"```(?:sql)?\\s*(.*?)\\s*```\"\
+            , text, re.DOTALL | re.IGNORECASE)\n    clean_sql = match.group(1).strip().rstrip(\"\
+            ;\") if match else text.rstrip(\";\").strip()\n\n    payload = {\n     \
+            \   \"embed_token\": (lfms_token or \"\").strip(),\n        \"sql\": clean_sql,\n\
+            \        \"natural_language_query\": user_query or \"\",\n        \"request_id\"\
+            : str(uuid.uuid4()),\n        \"context\": {\n            \"source\": \"\
+            dify\",\n            \"app\": \"text_to_sql_chatflow\",\n        },\n  \
+            \  }\n    request_json = json.dumps(payload, ensure_ascii=False, separators=(\",\",\
+            \ \":\"))\n    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
+            \    secret = (hmac_secret or \"\").strip()\n    if not secret:\n      \
+            \  return {\n            \"request_json\": request_json,\n            \"\
+            timestamp\": timestamp,\n            \"nonce\": nonce,\n            \"signature\"\
+            : \"\",\n        }\n    signature = _sign(request_json, timestamp, nonce,\
+            \ secret)\n\n    return {\n        \"request_json\"\
+            : request_json,\n        \"timestamp\": timestamp,\n        \"nonce\": nonce,\n\
+            \        \"signature\": signature,\n    }\n"
+          code_language: python3
+          desc: Tách SQL + HMAC theo examples/docs/lfms-sql-policy-api.md §3
+          outputs:
+            nonce:
+              children: null
+              type: string
+            request_json:
+              children: null
+              type: string
+            signature:
+              children: null
+              type: string
+            timestamp:
+              children: null
+              type: string
+          selected: false
+          title: Chuẩn Bị Execute Request
+          type: code
+          variables:
+            - value_selector:
+                - llm_sql_generator
+                - text
+              value_type: string
+              variable: llm_output
+            - value_selector:
+                - validate_embed
+                - embed_token
+              value_type: string
+              variable: lfms_token
+            - value_selector:
+                - sys
+                - query
+              value_type: string
+              variable: user_query
+            - value_selector:
+                - env
+                - DIFY_LFMS_HMAC_SECRET
+              value_type: secret
+              variable: hmac_secret
+        height: 96
+        id: build_execute_request
+        position:
+          x: 1200
+          y: 300
+        positionAbsolute:
+          x: 1200
+          y: 300
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          authorization:
+            type: no-auth
+          body:
+            data: '{{#build_execute_request.request_json#}}'
+            type: raw-text
+          desc: 'POST /api/internal/dify/sql/execute
+
+            Sửa URL host; HMAC qua headers bên dưới.
+
+            '
+          headers: 'Content-Type:application/json
+
+            X-Dify-Timestamp:{{#build_execute_request.timestamp#}}
+
+            X-Dify-Nonce:{{#build_execute_request.nonce#}}
+
+            X-Dify-Signature:{{#build_execute_request.signature#}}'
+          method: post
+          params: ''
+          retry_config:
+            enabled: false
+            exponential_backoff:
+              enabled: false
+              max_interval: 10000
+              multiplier: 2
+            max_retries: 1
+            retry_interval: 1000
+          selected: false
+          timeout:
+            connect: 10
+            read: 30
+            write: 30
+          title: Gọi LFMS Execute
+          type: http-request
+          url: '{{#validate_embed.api_base#}}/api/internal/dify/sql/execute'
+        height: 171
+        id: lfms_execute_http
+        position:
+          x: 1480
+          y: 300
+        positionAbsolute:
+          x: 1480
+          y: 300
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          code: |
+            import json
+
+            def _denial(parsed, message: str):
+                codes = []
+                names = []
+                if isinstance(parsed, dict):
+                    for v in parsed.get("violations") or []:
+                        if isinstance(v, dict):
+                            codes.append(str(v.get("code") or ""))
+                            names.append(str(v.get("name") or ""))
+                    codes.append(str(parsed.get("code") or ""))
+                text = (message or "") + " " + " ".join(codes) + " " + " ".join(names)
+                kind = ""
+                if "TABLE_DENIED" in text:
+                    kind = "TABLE_DENIED"
+                elif "COLUMN_DENIED" in text:
+                    kind = "COLUMN_DENIED"
+                retry = "true" if kind else "false"
+                return retry, kind, " ".join(n for n in names if n).strip()
+
+            def main(http_status, http_body: str) -> dict:
+                fail = {
+                    "is_ok": "false",
+                    "data_json": "[]",
+                    "row_count": "0",
+                    "error_message": "Không kết nối được LFMS SQL Gateway",
+                    "can_retry": "false",
+                    "denial_kind": "",
+                    "denied_name": "",
+                }
+                try:
+                    status = int(http_status or 0)
+                except (TypeError, ValueError):
+                    status = 0
+
+                body_text = (http_body or "").strip()
+                parsed = None
+                if body_text:
+                    try:
+                        parsed = json.loads(body_text)
+                    except json.JSONDecodeError:
+                        parsed = None
+
+                if status < 200 or status >= 300:
+                    extra = ""
+                    if isinstance(parsed, dict):
+                        code = parsed.get("code") or ""
+                        msg = parsed.get("message") or ""
+                        extra = (str(code) + " " + str(msg)).strip()
+                    elif body_text:
+                        extra = body_text[:500]
+                    err = f"LFMS lỗi HTTP {status}"
+                    if extra:
+                        err = err + " — " + extra
+                    if status in (401, 403) and (not extra or "HMAC" in extra or extra == ""):
+                        err = err + "\nGợi ý: điền DIFY_LFMS_HMAC_SECRET trên Dify (Workflow → Environment) trùng apps/.env LFMS. Secret rỗng = thiếu chữ ký."
+                    return {**fail, "error_message": err}
+
+                if not isinstance(parsed, dict):
+                    return {**fail, "error_message": "Phản hồi LFMS không hợp lệ"}
+
+                if bool(parsed.get("ok")):
+                    rows = parsed.get("data")
+                    if not isinstance(rows, list):
+                        rows = []
+                    try:
+                        row_count = int(parsed.get("row_count", len(rows)))
+                    except (TypeError, ValueError):
+                        row_count = len(rows)
+                    return {
+                        "is_ok": "true",
+                        "data_json": json.dumps(rows, ensure_ascii=False),
+                        "row_count": str(row_count),
+                        "error_message": "",
+                        "can_retry": "false",
+                        "denial_kind": "",
+                        "denied_name": "",
+                    }
+
+                message = parsed.get("message") or "Truy vấn không được phép"
+                retry, kind, denied_name = _denial(parsed, str(message))
+                return {
+                    "is_ok": "false",
+                    "data_json": "[]",
+                    "row_count": "0",
+                    "error_message": str(message),
+                    "can_retry": retry,
+                    "denial_kind": kind,
+                    "denied_name": denied_name,
+                }
+
+          code_language: python3
+          desc: Map { ok, data[], message } từ LFMS
+          outputs:
+            data_json:
+              children: null
+              type: string
+            error_message:
+              children: null
+              type: string
+            is_ok:
+              children: null
+              type: string
+            row_count:
+              children: null
+              type: string
+            can_retry:
+              children: null
+              type: string
+            denial_kind:
+              children: null
+              type: string
+            denied_name:
+              children: null
+              type: string
+          selected: false
+          title: Parse Execute Response
+          type: code
+          variables:
+            - value_selector:
+                - lfms_execute_http
+                - status_code
+              value_type: number
+              variable: http_status
+            - value_selector:
+                - lfms_execute_http
+                - body
+              value_type: string
+              variable: http_body
+        height: 80
+        id: parse_execute_response
+        position:
+          x: 1760
+          y: 300
+        positionAbsolute:
+          x: 1760
+          y: 300
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          cases:
+            - case_id: 'true'
+              conditions:
+                - comparison_operator: is
+                  id: execute-ok-check
+                  value: 'true'
+                  varType: string
+                  variable_selector:
+                    - parse_execute_response
+                    - is_ok
+              id: 'true'
+              logical_operator: and
+            - case_id: retry
+              conditions:
+                - comparison_operator: is
+                  id: execute-retry-check
+                  value: 'true'
+                  varType: string
+                  variable_selector:
+                    - parse_execute_response
+                    - can_retry
+              id: retry
+              logical_operator: and
+          desc: ''
+          selected: false
+          title: Phân Luồng Kết Quả
+          type: if-else
+        height: 124
+        id: result_router
+        position:
+          x: 2040
+          y: 300
+        positionAbsolute:
+          x: 2040
+          y: 300
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          desc: Tóm tắt data[] từ LFMS — không lộ SQL
+          memory:
+            enabled: false
+            role_prefix:
+              assistant: ''
+              user: ''
+            window:
+              enabled: false
+              size: 10
+          model:
+            completion_params:
+              temperature: 0.3
+            mode: chat
+            name: anthropic claude
+            provider: langgenius/bedrock/bedrock
+          prompt_template:
+            - id: 765f1ce2-3e33-4d85-aeae-31b5861eefae
+              role: system
+              text: 'Bạn trả lời câu hỏi nghiệp vụ LFMS bằng tiếng Việt dựa trên kết quả
+                truy vấn (JSON).
+
+                Không hiện SQL, tên bảng/cột, hay chi tiết kỹ thuật.
+
+                Tóm tắt rõ ràng; dùng bảng markdown nếu hữu ích.
+
+                Nếu data rỗng, nói rõ không có bản ghi phù hợp.
+
+                '
+            - id: ee0ad8dc-03fb-43cb-8532-6f67ca74d3f1
+              role: user
+              text: 'Câu hỏi: {{#sys.query#}}
+
+
+                Số hàng: {{#parse_execute_response.row_count#}}
+
+                Dữ liệu (JSON):
+
+                {{#parse_execute_response.data_json#}}
+
+                '
+          selected: false
+          structured_output:
+            enabled: false
+          title: Tóm Tắt Kết Quả
+          type: llm
+          variables: []
+          vision:
+            configs:
+              variable_selector: []
+            enabled: false
+        height: 132
+        id: llm_summarize
+        position:
+          x: 2320
+          y: 220
+        positionAbsolute:
+          x: 2320
+          y: 220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          answer: '{{#llm_summarize.text#}}'
+          desc: ''
+          selected: false
+          title: Trả lời
+          type: answer
+          variables: []
+        height: 103
+        id: answer_success
+        position:
+          x: 2600
+          y: 220
+        positionAbsolute:
+          x: 2600
+          y: 220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          answer: '{{#format_reject.user_message#}}'
+          desc: Thông báo thân thiện theo quyền; không in SQL
+          selected: false
+          title: Từ Chối
+          type: answer
+          variables: []
+        height: 131
+        id: answer_rejected
+        position:
+          x: 2860
+          y: 520
+        positionAbsolute:
+          x: 2860
+          y: 520
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          code: |
+            def main(error_message: str, denial_kind: str, denied_name: str) -> dict:
+                msg = (error_message or "").strip()
+                kind = (denial_kind or "").strip()
+                name = (denied_name or "").strip()
+                if kind == "TABLE_DENIED":
+                    label = name or "nhóm dữ liệu này"
+                    user = (
+                        "Vai trò của bạn không xem được "
+                        + label
+                        + ". Hãy hỏi lại mà không cần tên văn phòng, phòng ban hay dữ liệu ngoài phạm vi."
+                    )
+                elif kind == "COLUMN_DENIED":
+                    label = name or "một trường"
+                    user = (
+                        "Vai trò của bạn không đọc được trường "
+                        + label
+                        + ". Hãy hỏi phiên bản không gồm thông tin nhạy cảm."
+                    )
+                else:
+                    user = msg if msg else "Không thực hiện được truy vấn với quyền hiện tại."
+                if "SELECT" in user.upper() or "```" in user:
+                    user = "Không thực hiện được truy vấn với quyền hiện tại. Hãy diễn đạt lại câu hỏi."
+                return {"user_message": user}
+          code_language: python3
+          desc: Map TABLE_DENIED/COLUMN_DENIED sang câu tiếng Việt, không in SQL
+          outputs:
+            user_message:
+              children: null
+              type: string
+          selected: false
+          title: Lời Từ Chối Thân Thiện
+          type: code
+          variables:
+            - value_selector:
+                - parse_execute_response
+                - error_message
+              value_type: string
+              variable: error_message
+            - value_selector:
+                - parse_execute_response
+                - denial_kind
+              value_type: string
+              variable: denial_kind
+            - value_selector:
+                - parse_execute_response
+                - denied_name
+              value_type: string
+              variable: denied_name
+        height: 96
+        id: format_reject
+        position:
+          x: 2320
+          y: 520
+        positionAbsolute:
+          x: 2320
+          y: 520
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          desc: Sinh lại SQL bỏ bảng/cột bị cấm — tối đa 1 lần
+          memory:
+            enabled: false
+            role_prefix:
+              assistant: ''
+              user: ''
+            window:
+              enabled: false
+              size: 10
+          model:
+            completion_params:
+              temperature: 0
+            mode: chat
+            name: anthropic claude
+            provider: langgenius/bedrock/bedrock
+          prompt_template:
+            - id: 8c11e0a1-4f2a-4b9c-9d01-repair-sql-01
+              role: system
+              text: 'Bạn sửa SQL MySQL chỉ-đọc cho LFMS sau khi bị từ chối quyền.
+
+
+                {{#format_schema.schema_docs#}}
+
+
+                Bỏ mọi FROM/JOIN bảng bị TABLE_DENIED. Bỏ cột bị COLUMN_DENIED.
+
+                Không JOIN organizations/departments/case_types chỉ để lấy tên.
+
+                Không subquery/UNION/WITH/SELECT *. Chỉ SELECT. Soft-delete như schema.
+
+                Chỉ trả ```sql ... ```. Không giải thích.
+                '
+            - id: 8c11e0a1-4f2a-4b9c-9d01-repair-sql-02
+              role: user
+              text: 'Câu hỏi: {{#sys.query#}}
+
+
+                Lỗi: {{#parse_execute_response.error_message#}}
+
+                Mã: {{#parse_execute_response.denial_kind#}} {{#parse_execute_response.denied_name#}}
+
+
+                Request JSON lần trước (có sql):
+
+                {{#build_execute_request.request_json#}}
+                '
+          selected: false
+          structured_output:
+            enabled: false
+          title: Sửa SQL (1 lần)
+          type: llm
+          variables: []
+          vision:
+            configs:
+              variable_selector: []
+            enabled: false
+        height: 132
+        id: llm_sql_repair
+        position:
+          x: 2040
+          y: 620
+        positionAbsolute:
+          x: 2040
+          y: 620
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          code: "import hashlib\nimport hmac\nimport json\nimport re\nimport time\n\
+            import uuid\n\nLFMS_EXECUTE_PATH = \"/api/internal/dify/sql/execute\"\n\
+            HTTP_METHOD = \"POST\"\n\ndef _sign(raw_body: str, timestamp: str, nonce:\
+            \ str, secret: str) -> str:\n    body_hash = hashlib.sha256(raw_body.encode(\"\
+            utf-8\")).hexdigest()\n    signing_string = f\"{timestamp}\\n{nonce}\\n{HTTP_METHOD}\\\
+            n{LFMS_EXECUTE_PATH}\\n{body_hash}\"\n    return hmac.new(\n        secret.encode(\"\
+            utf-8\"),\n        signing_string.encode(\"utf-8\"),\n        hashlib.sha256,\n\
+            \    ).hexdigest()\n\ndef main(\n    llm_output: str,\n    lfms_token: str,\n\
+            \    user_query: str,\n    hmac_secret: str,\n) -> dict:\n    text = (llm_output\
+            \ or \"\").strip()\n    match = re.search(r\"```(?:sql)?\\s*(.*?)\\s*```\"\
+            , text, re.DOTALL | re.IGNORECASE)\n    clean_sql = match.group(1).strip().rstrip(\"\
+            ;\") if match else text.rstrip(\";\").strip()\n\n    payload = {\n     \
+            \   \"embed_token\": (lfms_token or \"\").strip(),\n        \"sql\": clean_sql,\n\
+            \        \"natural_language_query\": user_query or \"\",\n        \"request_id\"\
+            : str(uuid.uuid4()),\n        \"context\": {\n            \"source\": \"\
+            dify\",\n            \"app\": \"text_to_sql_chatflow\",\n        },\n  \
+            \  }\n    request_json = json.dumps(payload, ensure_ascii=False, separators=(\",\",\
+            \ \":\"))\n    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
+            \    secret = (hmac_secret or \"\").strip()\n    if not secret:\n      \
+            \  return {\n            \"request_json\": request_json,\n            \"\
+            timestamp\": timestamp,\n            \"nonce\": nonce,\n            \"signature\"\
+            : \"\",\n        }\n    signature = _sign(request_json, timestamp, nonce,\
+            \ secret)\n\n    return {\n        \"request_json\"\
+            : request_json,\n        \"timestamp\": timestamp,\n        \"nonce\": nonce,\n\
+            \        \"signature\": signature,\n    }\n"
+          code_language: python3
+          desc: HMAC retry — cùng contract với node execute gốc
+          outputs:
+            nonce:
+              children: null
+              type: string
+            request_json:
+              children: null
+              type: string
+            signature:
+              children: null
+              type: string
+            timestamp:
+              children: null
+              type: string
+          selected: false
+          title: Chuẩn Bị Execute Request (retry)
+          type: code
+          variables:
+            - value_selector:
+                - llm_sql_repair
+                - text
+              value_type: string
+              variable: llm_output
+            - value_selector:
+                - validate_embed
+                - embed_token
+              value_type: string
+              variable: lfms_token
+            - value_selector:
+                - sys
+                - query
+              value_type: string
+              variable: user_query
+            - value_selector:
+                - env
+                - DIFY_LFMS_HMAC_SECRET
+              value_type: secret
+              variable: hmac_secret
+        height: 96
+        id: build_execute_request_retry
+        position:
+          x: 2320
+          y: 620
+        positionAbsolute:
+          x: 2320
+          y: 620
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          authorization:
+            type: no-auth
+          body:
+            data: '{{#build_execute_request_retry.request_json#}}'
+            type: raw-text
+          desc: 'POST /api/internal/dify/sql/execute
+
+            Sửa URL host; HMAC qua headers bên dưới.
+
+            '
+          headers: 'Content-Type:application/json
+
+            X-Dify-Timestamp:{{#build_execute_request_retry.timestamp#}}
+
+            X-Dify-Nonce:{{#build_execute_request_retry.nonce#}}
+
+            X-Dify-Signature:{{#build_execute_request_retry.signature#}}'
+          method: post
+          params: ''
+          retry_config:
+            enabled: false
+            exponential_backoff:
+              enabled: false
+              max_interval: 10000
+              multiplier: 2
+            max_retries: 1
+            retry_interval: 1000
+          selected: false
+          timeout:
+            connect: 10
+            read: 30
+            write: 30
+          title: Gọi LFMS Execute (retry)
+          type: http-request
+          url: '{{#validate_embed.api_base#}}/api/internal/dify/sql/execute'
+        height: 171
+        id: lfms_execute_http_retry
+        position:
+          x: 2600
+          y: 620
+        positionAbsolute:
+          x: 2600
+          y: 620
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          code: |
+            import json
+
+            def _denial(parsed, message: str):
+                codes = []
+                names = []
+                if isinstance(parsed, dict):
+                    for v in parsed.get("violations") or []:
+                        if isinstance(v, dict):
+                            codes.append(str(v.get("code") or ""))
+                            names.append(str(v.get("name") or ""))
+                    codes.append(str(parsed.get("code") or ""))
+                text = (message or "") + " " + " ".join(codes) + " " + " ".join(names)
+                kind = ""
+                if "TABLE_DENIED" in text:
+                    kind = "TABLE_DENIED"
+                elif "COLUMN_DENIED" in text:
+                    kind = "COLUMN_DENIED"
+                retry = "true" if kind else "false"
+                return retry, kind, " ".join(n for n in names if n).strip()
+
+            def main(http_status, http_body: str) -> dict:
+                fail = {
+                    "is_ok": "false",
+                    "data_json": "[]",
+                    "row_count": "0",
+                    "error_message": "Không kết nối được LFMS SQL Gateway",
+                    "can_retry": "false",
+                    "denial_kind": "",
+                    "denied_name": "",
+                }
+                try:
+                    status = int(http_status or 0)
+                except (TypeError, ValueError):
+                    status = 0
+
+                body_text = (http_body or "").strip()
+                parsed = None
+                if body_text:
+                    try:
+                        parsed = json.loads(body_text)
+                    except json.JSONDecodeError:
+                        parsed = None
+
+                if status < 200 or status >= 300:
+                    extra = ""
+                    if isinstance(parsed, dict):
+                        code = parsed.get("code") or ""
+                        msg = parsed.get("message") or ""
+                        extra = (str(code) + " " + str(msg)).strip()
+                    elif body_text:
+                        extra = body_text[:500]
+                    err = f"LFMS lỗi HTTP {status}"
+                    if extra:
+                        err = err + " — " + extra
+                    if status in (401, 403) and (not extra or "HMAC" in extra or extra == ""):
+                        err = err + "\nGợi ý: điền DIFY_LFMS_HMAC_SECRET trên Dify (Workflow → Environment) trùng apps/.env LFMS. Secret rỗng = thiếu chữ ký."
+                    return {**fail, "error_message": err}
+
+                if not isinstance(parsed, dict):
+                    return {**fail, "error_message": "Phản hồi LFMS không hợp lệ"}
+
+                if bool(parsed.get("ok")):
+                    rows = parsed.get("data")
+                    if not isinstance(rows, list):
+                        rows = []
+                    try:
+                        row_count = int(parsed.get("row_count", len(rows)))
+                    except (TypeError, ValueError):
+                        row_count = len(rows)
+                    return {
+                        "is_ok": "true",
+                        "data_json": json.dumps(rows, ensure_ascii=False),
+                        "row_count": str(row_count),
+                        "error_message": "",
+                        "can_retry": "false",
+                        "denial_kind": "",
+                        "denied_name": "",
+                    }
+
+                message = parsed.get("message") or "Truy vấn không được phép"
+                retry, kind, denied_name = _denial(parsed, str(message))
+                return {
+                    "is_ok": "false",
+                    "data_json": "[]",
+                    "row_count": "0",
+                    "error_message": str(message),
+                    "can_retry": retry,
+                    "denial_kind": kind,
+                    "denied_name": denied_name,
+                }
+          code_language: python3
+          desc: Map { ok, data[], message } từ LFMS (lần 2)
+          outputs:
+            can_retry:
+              children: null
+              type: string
+            data_json:
+              children: null
+              type: string
+            denial_kind:
+              children: null
+              type: string
+            denied_name:
+              children: null
+              type: string
+            error_message:
+              children: null
+              type: string
+            is_ok:
+              children: null
+              type: string
+            row_count:
+              children: null
+              type: string
+          selected: false
+          title: Parse Execute Response (retry)
+          type: code
+          variables:
+            - value_selector:
+                - lfms_execute_http_retry
+                - status_code
+              value_type: number
+              variable: http_status
+            - value_selector:
+                - lfms_execute_http_retry
+                - body
+              value_type: string
+              variable: http_body
+        height: 80
+        id: parse_execute_response_retry
+        position:
+          x: 2880
+          y: 620
+        positionAbsolute:
+          x: 2880
+          y: 620
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          cases:
+            - case_id: 'true'
+              conditions:
+                - comparison_operator: is
+                  id: retry-ok-check
+                  value: 'true'
+                  varType: string
+                  variable_selector:
+                    - parse_execute_response_retry
+                    - is_ok
+              id: 'true'
+              logical_operator: and
+          desc: Lần 2 không retry thêm
+          selected: false
+          title: Phân Luồng Kết Quả (retry)
+          type: if-else
+        height: 124
+        id: retry_router
+        position:
+          x: 3160
+          y: 620
+        positionAbsolute:
+          x: 3160
+          y: 620
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          desc: Tóm tắt data[] từ LFMS sau retry — không lộ SQL
+          memory:
+            enabled: false
+            role_prefix:
+              assistant: ''
+              user: ''
+            window:
+              enabled: false
+              size: 10
+          model:
+            completion_params:
+              temperature: 0.3
+            mode: chat
+            name: anthropic claude
+            provider: langgenius/bedrock/bedrock
+          prompt_template:
+            - id: 765f1ce2-3e33-4d85-aeae-31b5861eefae
+              role: system
+              text: 'Bạn trả lời câu hỏi nghiệp vụ LFMS bằng tiếng Việt dựa trên kết quả
+                truy vấn (JSON).
+
+                Không hiện SQL, tên bảng/cột, hay chi tiết kỹ thuật.
+
+                Tóm tắt rõ ràng; dùng bảng markdown nếu hữu ích.
+
+                Nếu data rỗng, nói rõ không có bản ghi phù hợp.
+
+                '
+            - id: ee0ad8dc-03fb-43cb-8532-6f67ca74d3f1
+              role: user
+              text: 'Câu hỏi: {{#sys.query#}}
+
+
+                Số hàng: {{#parse_execute_response_retry.row_count#}}
+
+                Dữ liệu (JSON):
+
+                {{#parse_execute_response_retry.data_json#}}
+
+                '
+          selected: false
+          structured_output:
+            enabled: false
+          title: Tóm Tắt Kết Quả (retry)
+          type: llm
+          variables: []
+          vision:
+            configs:
+              variable_selector: []
+            enabled: false
+        height: 132
+        id: llm_summarize_retry
+        position:
+          x: 3440
+          y: 540
+        positionAbsolute:
+          x: 3440
+          y: 540
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          answer: '{{#llm_summarize_retry.text#}}'
+          desc: ''
+          selected: false
+          title: Trả lời (retry)
+          type: answer
+          variables: []
+        height: 103
+        id: answer_success_retry
+        position:
+          x: 3720
+          y: 540
+        positionAbsolute:
+          x: 3720
+          y: 540
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          code: |
+            def main(error_message: str, denial_kind: str, denied_name: str) -> dict:
+                msg = (error_message or "").strip()
+                kind = (denial_kind or "").strip()
+                name = (denied_name or "").strip()
+                if kind == "TABLE_DENIED":
+                    label = name or "nhóm dữ liệu này"
+                    user = (
+                        "Vai trò của bạn không xem được "
+                        + label
+                        + ". Hãy hỏi lại mà không cần tên văn phòng, phòng ban hay dữ liệu ngoài phạm vi."
+                    )
+                elif kind == "COLUMN_DENIED":
+                    label = name or "một trường"
+                    user = (
+                        "Vai trò của bạn không đọc được trường "
+                        + label
+                        + ". Hãy hỏi phiên bản không gồm thông tin nhạy cảm."
+                    )
+                else:
+                    user = msg if msg else "Không thực hiện được truy vấn với quyền hiện tại."
+                if "SELECT" in user.upper() or "```" in user:
+                    user = "Không thực hiện được truy vấn với quyền hiện tại. Hãy diễn đạt lại câu hỏi."
+                return {"user_message": user}
+          code_language: python3
+          desc: Từ chối sau 1 lần sửa SQL — không in SQL
+          outputs:
+            user_message:
+              children: null
+              type: string
+          selected: false
+          title: Lời Từ Chối Thân Thiện (retry)
+          type: code
+          variables:
+            - value_selector:
+                - parse_execute_response_retry
+                - error_message
+              value_type: string
+              variable: error_message
+            - value_selector:
+                - parse_execute_response_retry
+                - denial_kind
+              value_type: string
+              variable: denial_kind
+            - value_selector:
+                - parse_execute_response_retry
+                - denied_name
+              value_type: string
+              variable: denied_name
+        height: 96
+        id: format_reject_retry
+        position:
+          x: 3440
+          y: 740
+        positionAbsolute:
+          x: 3440
+          y: 740
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          answer: '{{#format_reject_retry.user_message#}}'
+          desc: Thân thiện sau retry; không in SQL
+          selected: false
+          title: Từ Chối (retry)
+          type: answer
+          variables: []
+        height: 131
+        id: answer_rejected_retry
+        position:
+          x: 3720
+          y: 740
+        positionAbsolute:
+          x: 3720
+          y: 740
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
     viewport:
-      x: 0
-      y: 0
-      zoom: 0.85
+      x: 31.973931933381664
+      y: 255.34938450398263
+      zoom: 0.5503258508327299
+  rag_pipeline_variables: []
