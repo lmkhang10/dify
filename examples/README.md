@@ -5,8 +5,37 @@ Plugin + Knowledge + workflow DSL.
 | File                             | Loại                         | Ghi chú                                                                                             |
 | -------------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
 | `text_to_sql_knowledge.yml`      | Workflow thuần               | Form chạy 1 lần; LLM + guardrail + `sql_execute`                                                    |
-| `text_to_sql_agent.yml`          | Agent app                    | Chat Agent trực tiếp (`/agent/...`) — hiện tool debug                                               |
+| `text_to_sql_agent.yml`          | Agent app                    | Debug Studio `/agent/...` — không có session LFMS; User Input JWT + HMAC CLI                        |
 | `text_to_sql_workflow_agent.yml` | **Chatflow** (advanced-chat) | KB → LLM SQL → **LFMS SQL Gateway** (`/sql/execute`) → tóm tắt; spec: `docs/lfms-sql-policy-api.md` |
+
+Khách không mở `/agent/...`. Bubble LFMS chỉ nhúng **Chatflow** `/chatbot/...`.
+
+### Ngữ cảnh nhiều lượt (Chatflow)
+
+`text_to_sql_workflow_agent.yml` có node **Rewrite câu hỏi** (memory, `query` template phải chứa `{{#sys.query#}}`) → Knowledge query = câu đã rewrite → Sinh SQL.
+
+Import DSL **không** giữ model/dataset của app cũ. Checklist(12) sau import: chọn lại model trên mọi LLM (kể cả Rewrite), gắn lại Knowledge, cài/authorize plugin ECharts, xóa node **Lưu câu độc lập** nếu còn trôi (unconnected). Không import đè nếu app đã chạy — chỉ thêm Rewrite rồi nối `embed_guard true → rewrite → knowledge`.
+
+### Agent Studio không qua được API — đúng thiết kế
+
+`POST /api/internal/dify/sql/execute` cần **hai** lớp:
+
+1. HMAC (`DIFY_LFMS_HMAC_SECRET`) — chứng request từ Dify
+2. `embed_token` JWT — chứng **user/org** LFMS
+
+URL `http://localhost/agent/<id>` không nhận query gzip `lfms_token` như `/chatbot/`. Không có JWT → LFMS không biết user nào.
+
+**Test trên `/agent/`:**
+
+1. Login LFMS (cùng org cần hỏi dữ liệu).
+2. `POST /api/embed/dify-token` (cookie session) → copy `embed_token`.
+3. Agent Studio → User Input: `lfms_token` = JWT thô (không gzip), `lfms_api_base` = origin LFMS mà container Dify gọi được (`http://host.docker.internal:8010` hoặc URL public).
+4. Environment: `DIFY_LFMS_HMAC_SECRET` trùng `apps/.env`.
+5. CLI `lfms_sql_execute` (`examples/agent/lfms_sql_execute.py`): map env `LFMS_EMBED_TOKEN` / `LFMS_API_BASE` từ hai input trên; sửa `command` nếu sandbox không mount `/app/examples/...`.
+
+Không dán JWT một user vào env toàn cục (mọi cuộc chat sẽ mượn quyền người đó).
+
+**Production:** Chatflow `text_to_sql_workflow_agent.yml` + bubble Admin.
 
 ## Bảo mật — không lộ SQL cho khách (không sửa source Dify)
 
@@ -75,7 +104,7 @@ Publish sẽ fail với “Knowledge is required” nếu chưa chọn dataset.
 
 ## Knowledge mới / đổi file
 
-Upload thêm `knowledge/glossary.md` và `knowledge/organizations.md` vào dataset đã tạo (Add file), rồi **Index**. Không cần tạo dataset mới.
+Sửa file trên đĩa **không** đổi câu SQL Dify đang sinh. Studio → Knowledge → dataset LFMS → **Add file** (gồm `knowledge/enums.md`) → **Save & Process / Index** lại toàn bộ chunk. Chunk cũ còn `'paid'`/`inbound` thì model vẫn copy.
 
 Câu tiếng Việt cần **từ điển** (tổ chức → `organizations`, nhân viên → `users`), không chỉ DESCRIBE cột.
 

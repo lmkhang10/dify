@@ -257,6 +257,10 @@ WebApp `/chat/...` **không** giải nén query (khác `/chatbot` + `embed.js`).
 
 **Workflow env (secret):** `DIFY_LFMS_HMAC_SECRET` — cùng giá trị LFMS.
 
+### 5.1 Agent app (`/agent/...`) — không tự có user
+
+Agent Studio **không** gắn `lfms_token`. Execute vẫn cần JWT + HMAC. Test: User Input `lfms_token` + `lfms_api_base`, env HMAC, CLI `examples/agent/lfms_sql_execute.py`. Không dùng URL `/agent/` cho khách; bubble LFMS chỉ `/chatbot/` Chatflow.
+
 **Preview Studio:** không truyền `lfms_token` / `lfms_api_base` thì nhánh **Từ Chối Embed** chạy ngay (đúng). Mở **User Input** trên panel Preview nếu muốn điền tay để test happy path.
 
 **Không dùng:** plugin `sql_execute`, credential MySQL trên Dify.

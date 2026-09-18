@@ -7,9 +7,9 @@ app:
 
     Sau import:
 
-    1. Knowledge Retrieval → dataset LFMS (examples/knowledge/)
+    1. Knowledge Retrieval → dataset LFMS (examples/knowledge/, gồm followups.md)
 
-    2. Chọn model trên LLM nodes
+    2. Chọn model trên LLM nodes (kể cả Rewrite câu hỏi)
 
     3. Workflow → Environment → DIFY_LFMS_HMAC_SECRET
 
@@ -17,6 +17,9 @@ app:
     §5)
 
     5. Overview → tắt Show workflow steps → Publish WebApp
+
+    6. Biểu đồ: LLM tóm tắt trả JSON {answer, chart}. Node Parse Chart Payload
+    map sang biến ECharts (title/data/labels). Tool pie/line chỉ chạy khi chart != null.
 
 
     Không cần plugin database / credential MySQL trên Dify.
@@ -34,6 +37,11 @@ dependencies:
     value:
       marketplace_plugin_unique_identifier: langgenius/bedrock:0.0.84@7d913a7ffb73e390092c5a34f42c574c4020237a1d81be10067d0441ba172eee
       version: null
+  - current_identifier: null
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: langgenius/echarts:0.0.8@4420ee90d39f2841a5eaa6d4facde605482cbadf4a246c0c4cfa5db06ffefb3c
+      version: null
 kind: app
 version: 0.7.0
 workflow:
@@ -45,14 +53,15 @@ workflow:
       selector:
         - env
         - DIFY_LFMS_HMAC_SECRET
-      value: ''
+      value: 226cd03fc0b84fd5081a3f4b14b29669c1092c11101bfe67b8284cab8b41d213
       value_type: secret
   features:
     file_upload:
       enabled: false
-    opening_statement: 'Gửi một tin (ví dụ: ping) để nhận chẩn đoán lfms_token / lfms_api_base nếu phiên không hợp lệ.'
+    opening_statement: Xin chào, tôi là AI Chatbot hỗ trợ bạn.
     retriever_resource:
       enabled: true
+    show_workflow_steps: false
     sensitive_word_avoidance:
       enabled: false
     speech_to_text:
@@ -94,10 +103,22 @@ workflow:
           isInIteration: false
           isInLoop: false
           sourceType: if-else
-          targetType: knowledge-retrieval
-        id: embed-guard-true-to-kb
+          targetType: llm
+        id: embed-guard-true-to-rewrite
         source: embed_guard
         sourceHandle: 'true'
+        target: llm_rewrite_query
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: llm
+          targetType: knowledge-retrieval
+        id: rewrite-to-kb
+        source: llm_rewrite_query
+        sourceHandle: source
         target: knowledge_retrieval
         targetHandle: target
         type: custom
@@ -226,11 +247,11 @@ workflow:
           isInIteration: false
           isInLoop: false
           sourceType: llm
-          targetType: answer
-        id: summarize-to-answer
+          targetType: code
+        id: summarize-to-parse-chart
         source: llm_summarize
         sourceHandle: source
-        target: answer_success
+        target: parse_chart_payload
         targetHandle: target
         type: custom
         zIndex: 0
@@ -322,11 +343,11 @@ workflow:
           isInIteration: false
           isInLoop: false
           sourceType: llm
-          targetType: answer
-        id: summarize-retry-to-answer
+          targetType: code
+        id: summarize-retry-to-parse-chart
         source: llm_summarize_retry
         sourceHandle: source
-        target: answer_success_retry
+        target: parse_chart_payload_retry
         targetHandle: target
         type: custom
         zIndex: 0
@@ -339,6 +360,174 @@ workflow:
         source: format_reject_retry
         sourceHandle: source
         target: answer_rejected_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: if-else
+        id: parse-chart-to-guard
+        source: parse_chart_payload
+        sourceHandle: source
+        target: chart_guard
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: if-else
+        id: chart-guard-true-to-kind
+        source: chart_guard
+        sourceHandle: 'true'
+        target: chart_kind_router
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: answer
+        id: chart-guard-false-to-answer
+        source: chart_guard
+        sourceHandle: 'false'
+        target: answer_success
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: tool
+        id: kind-pie-to-pie
+        source: chart_kind_router
+        sourceHandle: pie
+        target: echarts_pie
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: tool
+        id: kind-else-to-line
+        source: chart_kind_router
+        sourceHandle: 'false'
+        target: echarts_line
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: tool
+          targetType: answer
+        id: pie-to-answer
+        source: echarts_pie
+        sourceHandle: source
+        target: answer_success_pie
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: tool
+          targetType: answer
+        id: line-to-answer
+        source: echarts_line
+        sourceHandle: source
+        target: answer_success_line
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: if-else
+        id: parse-chart-retry-to-guard
+        source: parse_chart_payload_retry
+        sourceHandle: source
+        target: chart_guard_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: if-else
+        id: chart-guard-retry-true-to-kind
+        source: chart_guard_retry
+        sourceHandle: 'true'
+        target: chart_kind_router_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: answer
+        id: chart-guard-retry-false-to-answer
+        source: chart_guard_retry
+        sourceHandle: 'false'
+        target: answer_success_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: tool
+        id: kind-retry-pie-to-pie
+        source: chart_kind_router_retry
+        sourceHandle: pie
+        target: echarts_pie_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: if-else
+          targetType: tool
+        id: kind-retry-else-to-line
+        source: chart_kind_router_retry
+        sourceHandle: 'false'
+        target: echarts_line_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: tool
+          targetType: answer
+        id: pie-retry-to-answer
+        source: echarts_pie_retry
+        sourceHandle: source
+        target: answer_success_pie_retry
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: tool
+          targetType: answer
+        id: line-retry-to-answer
+        source: echarts_line_retry
+        sourceHandle: source
+        target: answer_success_line_retry
         targetHandle: target
         type: custom
         zIndex: 0
@@ -373,11 +562,11 @@ workflow:
         height: 179
         id: start_node
         position:
-          x: 80
-          y: 300
+          x: 0
+          y: 65.77857142857141
         positionAbsolute:
-          x: 80
-          y: 300
+          x: 0
+          y: 65.77857142857141
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -385,142 +574,74 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          code: |
-            import base64
-            import gzip
-            import json
-            import zlib
-
-            def _as_text(value):
-                if value is None:
-                    return ""
-                if isinstance(value, (bytes, bytearray)):
-                    return bytes(value).decode("utf-8", "replace")
-                return str(value).strip()
-
-            def _maybe_decompress(value):
-                raw = _as_text(value)
-                if not raw:
-                    return "", "empty"
-                if raw.startswith(("eyJ", "http://", "https://")):
-                    return raw, "plain"
-                try:
-                    padded = raw + "=" * ((4 - len(raw) % 4) % 4)
-                    blob = base64.b64decode(padded.replace("-", "+").replace("_", "/"), validate=False)
-                except Exception as exc:
-                    return raw, "b64_fail:" + type(exc).__name__
-                if blob[:2] != b"\x1f\x8b":
-                    return raw, "not_gzip"
-                try:
-                    return gzip.decompress(blob).decode("utf-8").strip(), "gzip"
-                except Exception as gzip_exc:
-                    header = 10
-                    if len(blob) > 10 and blob[3] & 0x08:
-                        z = blob.find(b"\x00", 10)
-                        header = z + 1 if z != -1 else 10
-                    payload = blob[header:-8] if len(blob) > header + 8 else blob[header:]
-                    try:
-                        out = zlib.decompress(payload, -zlib.MAX_WBITS)
-                        return out.decode("utf-8").strip(), "gzip_ignore_crc"
-                    except Exception:
-                        try:
-                            d = zlib.decompressobj(-zlib.MAX_WBITS)
-                            out = d.decompress(payload)
-                            text = out.decode("utf-8", "replace").strip()
-                            if text:
-                                return text, "gzip_truncated:" + type(gzip_exc).__name__
-                        except Exception:
-                            pass
-                    return raw, "gzip_fail:" + type(gzip_exc).__name__
-
-            def _is_jwt(token):
-                parts = (token or "").split(".")
-                if len(parts) != 3 or not all(parts):
-                    return False
-                if len(parts[2]) < 40:
-                    return False
-                try:
-                    padded = parts[1] + "=" * ((4 - len(parts[1]) % 4) % 4)
-                    json.loads(base64.urlsafe_b64decode(padded))
-                    return True
-                except Exception:
-                    return False
-
-            def _dump(token_in, base_in, token, base, token_how, base_how, code, reason):
-                lines = [
-                    "Không khả thi khi sử dụng trực tiếp!" if code else "Embed OK — giá trị đã giải nén:",
-                    "",
-                ]
-                if code:
-                    lines += ["Mã: " + code, "Chi tiết: " + reason, ""]
-                lines += [
-                    "=== lfms_token đã giải nén (decode=" + token_how + ") ===",
-                    token or "(rỗng)",
-                    "",
-                    "=== lfms_api_base đã giải nén (decode=" + base_how + ") ===",
-                    base or "(rỗng)",
-                    "",
-                    "=== raw Start.lfms_token ===",
-                    _as_text(token_in) or "(rỗng)",
-                    "",
-                    "=== raw Start.lfms_api_base ===",
-                    _as_text(base_in) or "(rỗng)",
-                ]
-                return "\n".join(lines)
-
-            def _reject(code, reason, token_in, base_in, token, base, token_how, base_how):
-                return {
-                    "embed_ok": "false",
-                    "error_message": _dump(token_in, base_in, token, base, token_how, base_how, code, reason),
-                    "embed_token": token or "",
-                    "api_base": base or "",
-                }
-
-            def main(lfms_token=None, lfms_api_base=None):
-                token_in = lfms_token
-                base_in = lfms_api_base
-                token, token_how = _maybe_decompress(token_in)
-                base, base_how = _maybe_decompress(base_in)
-                base = (base or "").rstrip("/")
-
-                if token_how.startswith("gzip_truncated") or token_how.startswith("gzip_fail"):
-                    return _reject(
-                        "EMBED_BAD_JWT",
-                        "lfms_token gzip bị cắt — chữ ký JWT hỏng, LFMS trả TOKEN_INVALID.",
-                        token_in, base_in, token, base, token_how, base_how,
-                    )
-
-                if not _as_text(token_in):
-                    return _reject(
-                        "EMBED_MISSING_TOKEN",
-                        "Workflow không nhận lfms_token (inputs rỗng). Thường do iframe /chat/ hoặc embed.js gzip lỗi rồi nuốt param.",
-                        token_in, base_in, token, base, token_how, base_how,
-                    )
-                if not _as_text(base_in):
-                    return _reject(
-                        "EMBED_MISSING_API_BASE",
-                        "Workflow không nhận lfms_api_base.",
-                        token_in, base_in, token, base, token_how, base_how,
-                    )
-                if not base.startswith(("http://", "https://")):
-                    return _reject(
-                        "EMBED_BAD_API_BASE",
-                        "lfms_api_base sau giải nén không phải URL http(s).",
-                        token_in, base_in, token, base, token_how, base_how,
-                    )
-                if not _is_jwt(token):
-                    return _reject(
-                        "EMBED_BAD_JWT",
-                        "Token không phải JWT hợp lệ (3 đoạn, payload JSON). Gzip lfms_token trên URL CRC fail / stream bị cắt.",
-                        token_in, base_in, token, base, token_how, base_how,
-                    )
-
-                return {
-                    "embed_ok": "true",
-                    "error_message": _dump(token_in, base_in, token, base, token_how, base_how, "", ""),
-                    "embed_token": token,
-                    "api_base": base,
-                }
+          code: "import base64\nimport gzip\nimport json\nimport zlib\n\ndef _as_text(value):\n\
+            \    if value is None:\n        return \"\"\n    if isinstance(value, (bytes,\
+            \ bytearray)):\n        return bytes(value).decode(\"utf-8\", \"replace\"\
+            )\n    return str(value).strip()\n\ndef _maybe_decompress(value):\n    raw\
+            \ = _as_text(value)\n    if not raw:\n        return \"\", \"empty\"\n \
+            \   if raw.startswith((\"eyJ\", \"http://\", \"https://\")):\n        return\
+            \ raw, \"plain\"\n    try:\n        padded = raw + \"=\" * ((4 - len(raw)\
+            \ % 4) % 4)\n        blob = base64.b64decode(padded.replace(\"-\", \"+\"\
+            ).replace(\"_\", \"/\"), validate=False)\n    except Exception as exc:\n\
+            \        return raw, \"b64_fail:\" + type(exc).__name__\n    if blob[:2]\
+            \ != b\"\\x1f\\x8b\":\n        return raw, \"not_gzip\"\n    try:\n    \
+            \    return gzip.decompress(blob).decode(\"utf-8\").strip(), \"gzip\"\n\
+            \    except Exception as gzip_exc:\n        header = 10\n        if len(blob)\
+            \ > 10 and blob[3] & 0x08:\n            z = blob.find(b\"\\x00\", 10)\n\
+            \            header = z + 1 if z != -1 else 10\n        payload = blob[header:-8]\
+            \ if len(blob) > header + 8 else blob[header:]\n        try:\n         \
+            \   out = zlib.decompress(payload, -zlib.MAX_WBITS)\n            return\
+            \ out.decode(\"utf-8\").strip(), \"gzip_ignore_crc\"\n        except Exception:\n\
+            \            try:\n                d = zlib.decompressobj(-zlib.MAX_WBITS)\n\
+            \                out = d.decompress(payload)\n                text = out.decode(\"\
+            utf-8\", \"replace\").strip()\n                if text:\n              \
+            \      return text, \"gzip_truncated:\" + type(gzip_exc).__name__\n    \
+            \        except Exception:\n                pass\n        return raw, \"\
+            gzip_fail:\" + type(gzip_exc).__name__\n\ndef _is_jwt(token):\n    parts\
+            \ = (token or \"\").split(\".\")\n    if len(parts) != 3 or not all(parts):\n\
+            \        return False\n    if len(parts[2]) < 40:\n        return False\n\
+            \    try:\n        padded = parts[1] + \"=\" * ((4 - len(parts[1]) % 4)\
+            \ % 4)\n        json.loads(base64.urlsafe_b64decode(padded))\n        return\
+            \ True\n    except Exception:\n        return False\n\ndef _dump(token_in,\
+            \ base_in, token, base, token_how, base_how, code, reason):\n    lines =\
+            \ [\n        \"Không khả thi khi sử dụng trực tiếp!\" if code else \"Embed\
+            \ OK — giá trị đã giải nén:\",\n        \"\",\n    ]\n    if code:\n   \
+            \     lines += [\"Mã: \" + code, \"Chi tiết: \" + reason, \"\"]\n    lines\
+            \ += [\n        \"=== lfms_token đã giải nén (decode=\" + token_how + \"\
+            ) ===\",\n        token or \"(rỗng)\",\n        \"\",\n        \"=== lfms_api_base\
+            \ đã giải nén (decode=\" + base_how + \") ===\",\n        base or \"(rỗng)\"\
+            ,\n        \"\",\n        \"=== raw Start.lfms_token ===\",\n        _as_text(token_in)\
+            \ or \"(rỗng)\",\n        \"\",\n        \"=== raw Start.lfms_api_base ===\"\
+            ,\n        _as_text(base_in) or \"(rỗng)\",\n    ]\n    return \"\\n\".join(lines)\n\
+            \ndef _reject(code, reason, token_in, base_in, token, base, token_how, base_how):\n\
+            \    return {\n        \"embed_ok\": \"false\",\n        \"error_message\"\
+            : _dump(token_in, base_in, token, base, token_how, base_how, code, reason),\n\
+            \        \"embed_token\": token or \"\",\n        \"api_base\": base or\
+            \ \"\",\n    }\n\ndef main(lfms_token=None, lfms_api_base=None):\n    token_in\
+            \ = lfms_token\n    base_in = lfms_api_base\n    token, token_how = _maybe_decompress(token_in)\n\
+            \    base, base_how = _maybe_decompress(base_in)\n    base = (base or \"\
+            \").rstrip(\"/\")\n\n    if token_how.startswith(\"gzip_truncated\") or\
+            \ token_how.startswith(\"gzip_fail\"):\n        return _reject(\n      \
+            \      \"EMBED_BAD_JWT\",\n            \"lfms_token gzip bị cắt — chữ ký\
+            \ JWT hỏng, LFMS trả TOKEN_INVALID.\",\n            token_in, base_in, token,\
+            \ base, token_how, base_how,\n        )\n\n    if not _as_text(token_in):\n\
+            \        return _reject(\n            \"EMBED_MISSING_TOKEN\",\n       \
+            \     \"Workflow không nhận lfms_token (inputs rỗng). Thường do iframe /chat/\
+            \ hoặc embed.js gzip lỗi rồi nuốt param.\",\n            token_in, base_in,\
+            \ token, base, token_how, base_how,\n        )\n    if not _as_text(base_in):\n\
+            \        return _reject(\n            \"EMBED_MISSING_API_BASE\",\n    \
+            \        \"Workflow không nhận lfms_api_base.\",\n            token_in,\
+            \ base_in, token, base, token_how, base_how,\n        )\n    if not base.startswith((\"\
+            http://\", \"https://\")):\n        return _reject(\n            \"EMBED_BAD_API_BASE\"\
+            ,\n            \"lfms_api_base sau giải nén không phải URL http(s).\",\n\
+            \            token_in, base_in, token, base, token_how, base_how,\n    \
+            \    )\n    if not _is_jwt(token):\n        return _reject(\n          \
+            \  \"EMBED_BAD_JWT\",\n            \"Token không phải JWT hợp lệ (3 đoạn,\
+            \ payload JSON). Gzip lfms_token trên URL CRC fail / stream bị cắt.\",\n\
+            \            token_in, base_in, token, base, token_how, base_how,\n    \
+            \    )\n\n    return {\n        \"embed_ok\": \"true\",\n        \"error_message\"\
+            : _dump(token_in, base_in, token, base, token_how, base_how, \"\", \"\"\
+            ),\n        \"embed_token\": token,\n        \"api_base\": base,\n    }\n"
           code_language: python3
           desc: Chặn sớm khi mở /chat trực tiếp hoặc thiếu tham số embed từ LFMS
           outputs:
@@ -553,11 +674,11 @@ workflow:
         height: 96
         id: validate_embed
         position:
-          x: 280
-          y: 300
+          x: 342
+          y: 137.11190476190467
         positionAbsolute:
-          x: 280
-          y: 300
+          x: 342
+          y: 137.11190476190467
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -581,14 +702,19 @@ workflow:
           selected: false
           title: Cổng Embed LFMS
           type: if-else
+          _targetBranches:
+            - id: 'true'
+              name: IF
+            - id: 'false'
+              name: ELSE
         height: 192
         id: embed_guard
         position:
-          x: 520
-          y: 300
+          x: 684
+          y: 105.11190476190467
         positionAbsolute:
-          x: 520
-          y: 300
+          x: 684
+          y: 105.11190476190467
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -605,11 +731,81 @@ workflow:
         height: 131
         id: answer_embed_rejected
         position:
-          x: 1020
-          y: 400
+          x: 1046
+          y: 290.897619047619
         positionAbsolute:
-          x: 1020
-          y: 400
+          x: 1046
+          y: 290.897619047619
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          desc: Viết lại câu độc lập trước khi retrieve KB / sinh SQL
+          memory:
+            enabled: true
+            query_prompt_template: '{{#sys.query#}}'
+            role_prefix:
+              assistant: ''
+              user: ''
+            window:
+              enabled: true
+              size: 12
+          model:
+            completion_params:
+              temperature: 0
+            mode: chat
+            name: anthropic claude
+            provider: langgenius/bedrock/bedrock
+          prompt_template:
+            - id: rewrite-sys-01
+              role: system
+              text: 'Bạn viết lại đúng MỘT câu hỏi tiếng Việt, độc lập, đủ chủ thể để
+                truy vấn dữ liệu luật (khách, vụ, HĐ, đợt thu).
+
+
+                Dùng lịch sử hội thoại (memory) để resolve đại từ.
+
+
+                Quy tắc:
+
+                1. Đại từ (khách đó, vụ này, HĐ đó, còn nợ thì sao, còn lại, thế còn,
+                của họ) → thay bằng tên/mã cụ thể lấy từ lịch sử chat.
+
+                2. Không bịa tên khách / mã vụ. Không có chủ thể trong lịch sử thì giữ
+                nguyên câu gốc.
+
+                3. Không viết SQL. Không markdown. Không giải thích. Chỉ một dòng câu
+                hỏi.
+
+                4. Giữ ý nghiệp vụ: còn nợ = đợt thu pending + in; doanh thu HĐ = giá
+                trị hợp đồng.
+
+                '
+            - id: rewrite-user-01
+              role: user
+              text: '{{#sys.query#}}'
+          selected: false
+          title: Rewrite câu hỏi
+          type: llm
+          variables: []
+          vision:
+            configs:
+              variable_selector: []
+            enabled: false
+        height: 132
+        id: llm_rewrite_query
+        position:
+          x: 1046
+          y: -80
+        positionAbsolute:
+          x: 1046
+          y: -80
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -619,7 +815,7 @@ workflow:
       - data:
           dataset_ids:
             - pu6UCjlqUcX9QJX6v9Er/nVbfmWgFLu4eSHYOBBwR+We5ICZgRi7OQ8LLxj4C7UM
-          desc: 'Sau import: chọn dataset LFMS (examples/knowledge/)'
+          desc: 'Sau import: chọn dataset LFMS (examples/knowledge/, gồm followups.md)'
           metadata_filtering_mode: disabled
           multiple_retrieval_config:
             reranking_enable: false
@@ -636,8 +832,8 @@ workflow:
               weight_type: customized
           query_attachment_selector: []
           query_variable_selector:
-            - start_node
-            - sys.query
+            - llm_rewrite_query
+            - text
           retrieval_mode: multiple
           selected: false
           title: Knowledge Retrieval
@@ -645,11 +841,11 @@ workflow:
         height: 134
         id: knowledge_retrieval
         position:
-          x: 360
-          y: 300
+          x: 1046
+          y: 76.897619047619
         positionAbsolute:
-          x: 360
-          y: 300
+          x: 1046
+          y: 76.897619047619
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -657,37 +853,46 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          code: |
-            FALLBACK = """### FALLBACK SCHEMA (KB empty) ###
-            Glossary: khách=clients (profile_kind client|lead); vụ=cases (category litigation|legal_service); HĐ=contracts.payment_amount; đợt thu=payments; việc=tasks + task_assignees
-            KHÔNG JOIN organizations/departments/case_types chỉ để lấy tên. Không subquery/UNION/WITH/SELECT *.
-            Table: clients — id, organization_id, name, profile_kind, type, status, lead_stage, assigned_to, created_by, deleted_at
-            Table: cases — id, code, name, client_id, category, status (new|in_progress|on_hold|closed), held_at, fee_estimate, billing_method, lead_lawyer_id, deleted_at. Cấm cột on_hold boolean.
-            Table: contracts — id, name, type, status, template_id, client_id, case_id, payment_amount, payment_currency, payment_due_date, is_canceled, is_completed, deleted_at
-            Table: tasks — id, title, case_id, created_by, priority, progress, due_date, deleted_at. Không cột status/assigned_to.
-            Table: task_assignees — task_id, user_id
-            Table: payments — contract_id, amount, currency, due_date, status, direction, paid_at
-            Table: users — id, name, position, status (active|away|inactive); cấm password
-            Table: organizations — id, name, is_active, deleted_at; cấm smtp_password; đừng JOIN trang trí
-            JOIN tối thiểu: cases.client_id=clients.id; contracts.client_id=clients.id; payments.contract_id=contracts.id
-            Bảng cấm: service_plans, organization_subscriptions, case_checklist_items, workflow_versions, vanna_*
-            """
-
-            def main(chunks) -> dict:
-                parts = []
-                items = chunks if isinstance(chunks, list) else []
-                for item in items:
-                    if not isinstance(item, dict):
-                        continue
-                    title = item.get("title") or ""
-                    content = item.get("content") or ""
-                    if content.strip():
-                        parts.append(f"## {title}\n{content}".strip())
-                schema_docs = "\n\n".join(parts) if parts else FALLBACK
-                return {"schema_docs": schema_docs, "hit_count": len(parts)}
-
+          code: "ENUM_CARD = \"\"\"### ENUM (luôn dùng; cấm bịa gần nghĩa) ###\npayments.status:\
+            \ pending|succeeded|cancelled — CẤM paid/unpaid\npayments.direction: in|out\
+            \ — CẤM inbound/outbound\nCông nợ = SUM(payments.amount) WHERE status='pending'\
+            \ AND direction='in'\nCẤM SUM(contracts.payment_amount)-SUM(payments.amount)\
+            \ trên cùng JOIN\nofficial_dispatches.direction: incoming|outgoing — CẤM\
+            \ inbound/outbound/in/out\nofficial_dispatches.status incoming: received|processing|replied|completed|canceled\n\
+            official_dispatches.status outgoing: draft|pending_sign|signed|sent|acknowledged\n\
+            clients.profile_kind: client|lead\nclients.type: individual|business\nclients.status:\
+            \ active|inactive|potential|archived\nclients.source: referral|website|walk_in|social_media|advertisement|other\n\
+            clients.lead_stage: new|consulting|proposal|negotiating|won|lost\ncases.category:\
+            \ litigation|legal_service\ncases.status: new|in_progress|on_hold|closed\n\
+            tasks: không cột status; priority emergency|high|medium|low; progress 0-100\n\
+            users.status: active|away|inactive\n\"\"\"\n\nFALLBACK = \"\"\"### FALLBACK\
+            \ SCHEMA (KB empty) ###\nGlossary: khách=clients (profile_kind client|lead);\
+            \ vụ=cases (category litigation|legal_service); HĐ=contracts.payment_amount;\
+            \ đợt thu=payments; việc=tasks + task_assignees\nKHÔNG JOIN organizations/departments/case_types\
+            \ chỉ để lấy tên. Không subquery/UNION/WITH/SELECT *.\nTable: clients —\
+            \ id, organization_id, name, profile_kind, type, status, lead_stage, assigned_to,\
+            \ created_by, deleted_at\nTable: cases — id, code, name, client_id, category,\
+            \ status, held_at, fee_estimate, billing_method, lead_lawyer_id, deleted_at.\
+            \ Cấm cột on_hold boolean.\nTable: contracts — id, name, type, status, template_id,\
+            \ client_id, case_id, payment_amount, payment_currency, payment_due_date,\
+            \ is_canceled, is_completed, deleted_at\nTable: tasks — id, title, case_id,\
+            \ created_by, priority, progress, due_date, deleted_at. Không cột status/assigned_to.\n\
+            Table: task_assignees — task_id, user_id\nTable: payments — contract_id,\
+            \ amount, currency, due_date, status, direction, paid_at\nTable: users —\
+            \ id, name, position, status; cấm password\nTable: organizations — id, name,\
+            \ is_active, deleted_at; cấm smtp_password; đừng JOIN trang trí\nJOIN tối\
+            \ thiểu: cases.client_id=clients.id; contracts.client_id=clients.id; payments.contract_id=contracts.id\n\
+            Bảng cấm: service_plans, organization_subscriptions, case_checklist_items,\
+            \ workflow_versions, vanna_*\n\"\"\"\n\ndef main(chunks) -> dict:\n    parts\
+            \ = []\n    items = chunks if isinstance(chunks, list) else []\n    for\
+            \ item in items:\n        if not isinstance(item, dict):\n            continue\n\
+            \        title = item.get(\"title\") or \"\"\n        content = item.get(\"\
+            content\") or \"\"\n        if content.strip():\n            parts.append(f\"\
+            ## {title}\\n{content}\".strip())\n    body = \"\\n\\n\".join(parts) if\
+            \ parts else FALLBACK\n    schema_docs = ENUM_CARD + \"\\n\\n\" + body\n\
+            \    return {\"schema_docs\": schema_docs, \"hit_count\": len(parts)}\n"
           code_language: python3
-          desc: Ghép chunk KB; fallback nếu chưa gắn dataset
+          desc: Ghép chunk KB; luôn prepend ENUM_CARD (retrieval hay miss)
           outputs:
             hit_count:
               children: null
@@ -707,11 +912,11 @@ workflow:
         height: 96
         id: format_schema
         position:
-          x: 640
-          y: 300
+          x: 1388
+          y: 118.23095238095237
         positionAbsolute:
-          x: 640
-          y: 300
+          x: 1388
+          y: 118.23095238095237
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -724,12 +929,13 @@ workflow:
             variable_selector: []
           desc: Chỉ sinh SQL — LFMS sẽ policy + execute
           memory:
-            enabled: false
+            enabled: true
+            query_prompt_template: '{{#sys.query#}}'
             role_prefix:
               assistant: ''
               user: ''
             window:
-              enabled: false
+              enabled: true
               size: 10
           model:
             completion_params:
@@ -751,7 +957,8 @@ workflow:
 
                 1. Chỉ SELECT. Không INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/GRANT.
 
-                2. Soft-delete: clients/cases/contracts/tasks/official_dispatches/documents/handbook_articles/organizations luôn `deleted_at IS NULL`.
+                2. Soft-delete: clients/cases/contracts/tasks/official_dispatches/documents/handbook_articles/organizations
+                luôn `deleted_at IS NULL`.
 
                 3. LIMIT 100 trừ COUNT/SUM/AVG.
 
@@ -765,24 +972,35 @@ workflow:
                 7. Chỉ trả SQL trong ```sql ... ```. Không giải thích.
 
                 8. Tối thiểu bảng: không JOIN organizations / departments / case_types
-                chỉ để lấy tên. Tenant do LFMS chèn. Trả id; tóm tắt sẽ nói thuộc văn phòng bạn.
+                chỉ để lấy tên. Tenant do LFMS chèn. Trả id; tóm tắt sẽ nói thuộc văn
+                phòng bạn.
 
                 9. Không JOIN users trừ khi câu hỏi cần tên nhân sự.
 
-                10. Ưu tiên report_daily_* cho tổng hợp. FLOW được SUM; STOCK lấy ngày cuối kỳ, không SUM.
+                10. Ưu tiên report_daily_* cho tổng hợp. FLOW được SUM; STOCK lấy ngày
+                cuối kỳ, không SUM.
 
-                11. Doanh thu HĐ = contracts.payment_amount. Đợt thu = payments qua contract_id.
+                11. Doanh thu HĐ = contracts.payment_amount. Đợt thu = payments.amount
+                qua contract_id.
 
-                12. clients.profile_kind; cases.category (litigation|legal_service). status vụ: new|in_progress|on_hold|closed.
+                12. Literal status/direction/profile_kind/category: copy đúng chuỗi trong
+                schema_docs (mục ENUM). Không bịa gần nghĩa (paid ≠ succeeded, inbound
+                ≠ in).
 
                 13. Cấm JOIN/FROM: service_plans, organization_subscriptions, case_checklist_items,
                 workflow_versions, workflow_keys, vanna_*, roles, password_reset_tokens.
 
-                '
+                14. Tên khách: LIKE phần tên (an khang), không so sánh bằng chuỗi rút
+                gọn. Công nợ: theo công thức trong mục ENUM của schema_docs.
 
+                '
             - id: 1c37b098-a3c5-4128-aa64-1016a14418ed
               role: user
-              text: '{{#sys.query#}}'
+              text: 'Câu hỏi độc lập (viết SQL theo câu này): {{#llm_rewrite_query.text#}}
+
+
+                Câu gốc: {{#sys.query#}}
+                '
           selected: false
           structured_output:
             enabled: false
@@ -796,11 +1014,11 @@ workflow:
         height: 132
         id: llm_sql_generator
         position:
-          x: 920
-          y: 300
+          x: 1730
+          y: 116.23095238095237
         positionAbsolute:
-          x: 920
-          y: 300
+          x: 1730
+          y: 116.23095238095237
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -824,15 +1042,15 @@ workflow:
             \        \"natural_language_query\": user_query or \"\",\n        \"request_id\"\
             : str(uuid.uuid4()),\n        \"context\": {\n            \"source\": \"\
             dify\",\n            \"app\": \"text_to_sql_chatflow\",\n        },\n  \
-            \  }\n    request_json = json.dumps(payload, ensure_ascii=False, separators=(\",\",\
-            \ \":\"))\n    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
+            \  }\n    request_json = json.dumps(payload, ensure_ascii=False, separators=(\"\
+            ,\", \":\"))\n    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
             \    secret = (hmac_secret or \"\").strip()\n    if not secret:\n      \
             \  return {\n            \"request_json\": request_json,\n            \"\
             timestamp\": timestamp,\n            \"nonce\": nonce,\n            \"signature\"\
             : \"\",\n        }\n    signature = _sign(request_json, timestamp, nonce,\
-            \ secret)\n\n    return {\n        \"request_json\"\
-            : request_json,\n        \"timestamp\": timestamp,\n        \"nonce\": nonce,\n\
-            \        \"signature\": signature,\n    }\n"
+            \ secret)\n\n    return {\n        \"request_json\": request_json,\n   \
+            \     \"timestamp\": timestamp,\n        \"nonce\": nonce,\n        \"signature\"\
+            : signature,\n    }\n"
           code_language: python3
           desc: Tách SQL + HMAC theo examples/docs/lfms-sql-policy-api.md §3
           outputs:
@@ -863,8 +1081,8 @@ workflow:
               value_type: string
               variable: lfms_token
             - value_selector:
-                - sys
-                - query
+                - llm_rewrite_query
+                - text
               value_type: string
               variable: user_query
             - value_selector:
@@ -875,11 +1093,11 @@ workflow:
         height: 96
         id: build_execute_request
         position:
-          x: 1200
-          y: 300
+          x: 2072
+          y: 156.23095238095237
         positionAbsolute:
-          x: 1200
-          y: 300
+          x: 2072
+          y: 156.23095238095237
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -925,11 +1143,11 @@ workflow:
         height: 171
         id: lfms_execute_http
         position:
-          x: 1480
-          y: 300
+          x: 2414
+          y: 134.73095238095237
         positionAbsolute:
-          x: 1480
-          y: 300
+          x: 2414
+          y: 134.73095238095237
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -937,102 +1155,63 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          code: |
-            import json
-
-            def _denial(parsed, message: str):
-                codes = []
-                names = []
-                if isinstance(parsed, dict):
-                    for v in parsed.get("violations") or []:
-                        if isinstance(v, dict):
-                            codes.append(str(v.get("code") or ""))
-                            names.append(str(v.get("name") or ""))
-                    codes.append(str(parsed.get("code") or ""))
-                text = (message or "") + " " + " ".join(codes) + " " + " ".join(names)
-                kind = ""
-                if "TABLE_DENIED" in text:
-                    kind = "TABLE_DENIED"
-                elif "COLUMN_DENIED" in text:
-                    kind = "COLUMN_DENIED"
-                retry = "true" if kind else "false"
-                return retry, kind, " ".join(n for n in names if n).strip()
-
-            def main(http_status, http_body: str) -> dict:
-                fail = {
-                    "is_ok": "false",
-                    "data_json": "[]",
-                    "row_count": "0",
-                    "error_message": "Không kết nối được LFMS SQL Gateway",
-                    "can_retry": "false",
-                    "denial_kind": "",
-                    "denied_name": "",
-                }
-                try:
-                    status = int(http_status or 0)
-                except (TypeError, ValueError):
-                    status = 0
-
-                body_text = (http_body or "").strip()
-                parsed = None
-                if body_text:
-                    try:
-                        parsed = json.loads(body_text)
-                    except json.JSONDecodeError:
-                        parsed = None
-
-                if status < 200 or status >= 300:
-                    extra = ""
-                    if isinstance(parsed, dict):
-                        code = parsed.get("code") or ""
-                        msg = parsed.get("message") or ""
-                        extra = (str(code) + " " + str(msg)).strip()
-                    elif body_text:
-                        extra = body_text[:500]
-                    err = f"LFMS lỗi HTTP {status}"
-                    if extra:
-                        err = err + " — " + extra
-                    if status in (401, 403) and (not extra or "HMAC" in extra or extra == ""):
-                        err = err + "\nGợi ý: điền DIFY_LFMS_HMAC_SECRET trên Dify (Workflow → Environment) trùng apps/.env LFMS. Secret rỗng = thiếu chữ ký."
-                    return {**fail, "error_message": err}
-
-                if not isinstance(parsed, dict):
-                    return {**fail, "error_message": "Phản hồi LFMS không hợp lệ"}
-
-                if bool(parsed.get("ok")):
-                    rows = parsed.get("data")
-                    if not isinstance(rows, list):
-                        rows = []
-                    try:
-                        row_count = int(parsed.get("row_count", len(rows)))
-                    except (TypeError, ValueError):
-                        row_count = len(rows)
-                    return {
-                        "is_ok": "true",
-                        "data_json": json.dumps(rows, ensure_ascii=False),
-                        "row_count": str(row_count),
-                        "error_message": "",
-                        "can_retry": "false",
-                        "denial_kind": "",
-                        "denied_name": "",
-                    }
-
-                message = parsed.get("message") or "Truy vấn không được phép"
-                retry, kind, denied_name = _denial(parsed, str(message))
-                return {
-                    "is_ok": "false",
-                    "data_json": "[]",
-                    "row_count": "0",
-                    "error_message": str(message),
-                    "can_retry": retry,
-                    "denial_kind": kind,
-                    "denied_name": denied_name,
-                }
-
+          code: "import json\n\ndef _denial(parsed, message: str):\n    codes = []\n\
+            \    names = []\n    if isinstance(parsed, dict):\n        for v in parsed.get(\"\
+            violations\") or []:\n            if isinstance(v, dict):\n            \
+            \    codes.append(str(v.get(\"code\") or \"\"))\n                names.append(str(v.get(\"\
+            name\") or \"\"))\n        codes.append(str(parsed.get(\"code\") or \"\"\
+            ))\n    text = (message or \"\") + \" \" + \" \".join(codes) + \" \" + \"\
+            \ \".join(names)\n    kind = \"\"\n    if \"TABLE_DENIED\" in text:\n  \
+            \      kind = \"TABLE_DENIED\"\n    elif \"COLUMN_DENIED\" in text:\n  \
+            \      kind = \"COLUMN_DENIED\"\n    retry = \"true\" if kind else \"false\"\
+            \n    return retry, kind, \" \".join(n for n in names if n).strip()\n\n\
+            def main(http_status, http_body: str) -> dict:\n    fail = {\n        \"\
+            is_ok\": \"false\",\n        \"data_json\": \"[]\",\n        \"row_count\"\
+            : \"0\",\n        \"error_message\": \"Không kết nối được LFMS SQL Gateway\"\
+            ,\n        \"can_retry\": \"false\",\n        \"denial_kind\": \"\",\n \
+            \       \"denied_name\": \"\",\n    }\n    try:\n        status = int(http_status\
+            \ or 0)\n    except (TypeError, ValueError):\n        status = 0\n\n   \
+            \ body_text = (http_body or \"\").strip()\n    parsed = None\n    if body_text:\n\
+            \        try:\n            parsed = json.loads(body_text)\n        except\
+            \ json.JSONDecodeError:\n            parsed = None\n\n    if status < 200\
+            \ or status >= 300:\n        extra = \"\"\n        if isinstance(parsed,\
+            \ dict):\n            code = parsed.get(\"code\") or \"\"\n            msg\
+            \ = parsed.get(\"message\") or \"\"\n            extra = (str(code) + \"\
+            \ \" + str(msg)).strip()\n        elif body_text:\n            extra = body_text[:500]\n\
+            \        err = f\"LFMS lỗi HTTP {status}\"\n        if extra:\n        \
+            \    err = err + \" — \" + extra\n        if status in (401, 403) and (not\
+            \ extra or \"HMAC\" in extra or extra == \"\"):\n            err = err +\
+            \ \"\\nGợi ý: điền DIFY_LFMS_HMAC_SECRET trên Dify (Workflow → Environment)\
+            \ trùng apps/.env LFMS. Secret rỗng = thiếu chữ ký.\"\n        return {**fail,\
+            \ \"error_message\": err}\n\n    if not isinstance(parsed, dict):\n    \
+            \    return {**fail, \"error_message\": \"Phản hồi LFMS không hợp lệ\"}\n\
+            \n    if bool(parsed.get(\"ok\")):\n        rows = parsed.get(\"data\")\n\
+            \        if not isinstance(rows, list):\n            rows = []\n       \
+            \ try:\n            row_count = int(parsed.get(\"row_count\", len(rows)))\n\
+            \        except (TypeError, ValueError):\n            row_count = len(rows)\n\
+            \        return {\n            \"is_ok\": \"true\",\n            \"data_json\"\
+            : json.dumps(rows, ensure_ascii=False),\n            \"row_count\": str(row_count),\n\
+            \            \"error_message\": \"\",\n            \"can_retry\": \"false\"\
+            ,\n            \"denial_kind\": \"\",\n            \"denied_name\": \"\"\
+            ,\n        }\n\n    message = parsed.get(\"message\") or \"Truy vấn không\
+            \ được phép\"\n    retry, kind, denied_name = _denial(parsed, str(message))\n\
+            \    return {\n        \"is_ok\": \"false\",\n        \"data_json\": \"\
+            []\",\n        \"row_count\": \"0\",\n        \"error_message\": str(message),\n\
+            \        \"can_retry\": retry,\n        \"denial_kind\": kind,\n       \
+            \ \"denied_name\": denied_name,\n    }\n"
           code_language: python3
           desc: Map { ok, data[], message } từ LFMS
           outputs:
+            can_retry:
+              children: null
+              type: string
             data_json:
+              children: null
+              type: string
+            denial_kind:
+              children: null
+              type: string
+            denied_name:
               children: null
               type: string
             error_message:
@@ -1042,15 +1221,6 @@ workflow:
               children: null
               type: string
             row_count:
-              children: null
-              type: string
-            can_retry:
-              children: null
-              type: string
-            denial_kind:
-              children: null
-              type: string
-            denied_name:
               children: null
               type: string
           selected: false
@@ -1070,11 +1240,11 @@ workflow:
         height: 80
         id: parse_execute_response
         position:
-          x: 1760
-          y: 300
+          x: 2756
+          y: 208.73095238095237
         positionAbsolute:
-          x: 1760
-          y: 300
+          x: 2756
+          y: 208.73095238095237
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1109,14 +1279,21 @@ workflow:
           selected: false
           title: Phân Luồng Kết Quả
           type: if-else
+          _targetBranches:
+            - id: 'true'
+              name: IF
+            - id: retry
+              name: ELIF 1
+            - id: 'false'
+              name: ELSE
         height: 124
         id: result_router
         position:
-          x: 2040
-          y: 300
+          x: 3098
+          y: 200.06428571428572
         positionAbsolute:
-          x: 2040
-          y: 300
+          x: 3098
+          y: 200.06428571428572
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1145,19 +1322,28 @@ workflow:
           prompt_template:
             - id: 765f1ce2-3e33-4d85-aeae-31b5861eefae
               role: system
-              text: 'Bạn trả lời câu hỏi nghiệp vụ LFMS bằng tiếng Việt dựa trên kết quả
-                truy vấn (JSON).
+              text: 'Bạn trả lời bằng đúng một JSON object. Không bọc trong markdown hay
+                khối code.
 
-                Không hiện SQL, tên bảng/cột, hay chi tiết kỹ thuật.
+                Schema mặc định: {"answer":"...","chart":null}
 
-                Tóm tắt rõ ràng; dùng bảng markdown nếu hữu ích.
-
+                answer: tiếng Việt, bảng markdown được. Không SQL, không tên bảng/cột.
                 Nếu data rỗng, nói rõ không có bản ghi phù hợp.
+
+                chart chỉ khi câu hỏi liên quan biểu đồ / so sánh trực quan / tỉ lệ /
+                xếp hạng (biểu đồ, pie, bar, top N, tỷ trọng) VÀ có ít nhất 2 điểm số.
+                Không vẽ khi tra cứu một bản ghi, danh sách chữ, câu hỏi có/không.
+
+                Khi vẽ, values là number (không string):
+
+                {"answer":"...","chart":{"type":"bar","title":"Công nợ theo khách hàng","labels":["A","B"],"values":[10,20]}}
+
+                type: bar hoặc line hoặc pie. Workflow sẽ gán labels/values vào ECharts.
 
                 '
             - id: ee0ad8dc-03fb-43cb-8532-6f67ca74d3f1
               role: user
-              text: 'Câu hỏi: {{#sys.query#}}
+              text: 'Câu hỏi: {{#llm_rewrite_query.text#}}
 
 
                 Số hàng: {{#parse_execute_response.row_count#}}
@@ -1170,6 +1356,7 @@ workflow:
           selected: false
           structured_output:
             enabled: false
+          structured_output_enabled: false
           title: Tóm Tắt Kết Quả
           type: llm
           variables: []
@@ -1180,11 +1367,11 @@ workflow:
         height: 132
         id: llm_summarize
         position:
-          x: 2320
-          y: 220
+          x: 3460
+          y: -1.4285714285714288
         positionAbsolute:
-          x: 2320
-          y: 220
+          x: 3460
+          y: -1.4285714285714288
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1192,7 +1379,7 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          answer: '{{#llm_summarize.text#}}'
+          answer: '{{#parse_chart_payload.user_message#}}'
           desc: ''
           selected: false
           title: Trả lời
@@ -1201,11 +1388,53 @@ workflow:
         height: 103
         id: answer_success
         position:
-          x: 2600
-          y: 220
+          x: 3802
+          y: 36.5
         positionAbsolute:
-          x: 2600
-          y: 220
+          x: 3802
+          y: 36.5
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          answer: "{{#parse_chart_payload.user_message#}}\n\n{{#echarts_line.text#}}"
+          desc: Bảng + markdown echarts từ plugin Line
+          selected: false
+          title: Trả lời + Line
+          type: answer
+          variables: []
+        height: 103
+        id: answer_success_line
+        position:
+          x: 5170
+          y: 80
+        positionAbsolute:
+          x: 5170
+          y: 80
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          answer: "{{#parse_chart_payload.user_message#}}\n\n{{#echarts_pie.text#}}"
+          desc: Bảng + markdown echarts từ plugin Pie
+          selected: false
+          title: Trả lời + Pie
+          type: answer
+          variables: []
+        height: 103
+        id: answer_success_pie
+        position:
+          x: 5170
+          y: -40
+        positionAbsolute:
+          x: 5170
+          y: -40
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1222,11 +1451,11 @@ workflow:
         height: 131
         id: answer_rejected
         position:
-          x: 2860
-          y: 520
+          x: 3802
+          y: 428
         positionAbsolute:
-          x: 2860
-          y: 520
+          x: 3802
+          y: 428
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1234,30 +1463,21 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          code: |
-            def main(error_message: str, denial_kind: str, denied_name: str) -> dict:
-                msg = (error_message or "").strip()
-                kind = (denial_kind or "").strip()
-                name = (denied_name or "").strip()
-                if kind == "TABLE_DENIED":
-                    label = name or "nhóm dữ liệu này"
-                    user = (
-                        "Vai trò của bạn không xem được "
-                        + label
-                        + ". Hãy hỏi lại mà không cần tên văn phòng, phòng ban hay dữ liệu ngoài phạm vi."
-                    )
-                elif kind == "COLUMN_DENIED":
-                    label = name or "một trường"
-                    user = (
-                        "Vai trò của bạn không đọc được trường "
-                        + label
-                        + ". Hãy hỏi phiên bản không gồm thông tin nhạy cảm."
-                    )
-                else:
-                    user = msg if msg else "Không thực hiện được truy vấn với quyền hiện tại."
-                if "SELECT" in user.upper() or "```" in user:
-                    user = "Không thực hiện được truy vấn với quyền hiện tại. Hãy diễn đạt lại câu hỏi."
-                return {"user_message": user}
+          code: "def main(error_message: str, denial_kind: str, denied_name: str) ->\
+            \ dict:\n    msg = (error_message or \"\").strip()\n    kind = (denial_kind\
+            \ or \"\").strip()\n    name = (denied_name or \"\").strip()\n    if kind\
+            \ == \"TABLE_DENIED\":\n        label = name or \"nhóm dữ liệu này\"\n \
+            \       user = (\n            \"Vai trò của bạn không xem được \"\n    \
+            \        + label\n            + \". Hãy hỏi lại mà không cần tên văn phòng,\
+            \ phòng ban hay dữ liệu ngoài phạm vi.\"\n        )\n    elif kind == \"\
+            COLUMN_DENIED\":\n        label = name or \"một trường\"\n        user =\
+            \ (\n            \"Vai trò của bạn không đọc được trường \"\n          \
+            \  + label\n            + \". Hãy hỏi phiên bản không gồm thông tin nhạy\
+            \ cảm.\"\n        )\n    else:\n        user = msg if msg else \"Không thực\
+            \ hiện được truy vấn với quyền hiện tại.\"\n    if \"SELECT\" in user.upper()\
+            \ or \"```\" in user:\n        user = \"Không thực hiện được truy vấn với\
+            \ quyền hiện tại. Hãy diễn đạt lại câu hỏi.\"\n    return {\"user_message\"\
+            : user}\n"
           code_language: python3
           desc: Map TABLE_DENIED/COLUMN_DENIED sang câu tiếng Việt, không in SQL
           outputs:
@@ -1286,11 +1506,11 @@ workflow:
         height: 96
         id: format_reject
         position:
-          x: 2320
-          y: 520
+          x: 3460
+          y: 429.5
         positionAbsolute:
-          x: 2320
-          y: 520
+          x: 3460
+          y: 429.5
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1331,11 +1551,10 @@ workflow:
 
                 Không subquery/UNION/WITH/SELECT *. Chỉ SELECT. Soft-delete như schema.
 
-                Chỉ trả ```sql ... ```. Không giải thích.
-                '
+                Chỉ trả ```sql ... ```. Không giải thích. '
             - id: 8c11e0a1-4f2a-4b9c-9d01-repair-sql-02
               role: user
-              text: 'Câu hỏi: {{#sys.query#}}
+              text: 'Câu hỏi: {{#llm_rewrite_query.text#}}
 
 
                 Lỗi: {{#parse_execute_response.error_message#}}
@@ -1345,8 +1564,7 @@ workflow:
 
                 Request JSON lần trước (có sql):
 
-                {{#build_execute_request.request_json#}}
-                '
+                {{#build_execute_request.request_json#}} '
           selected: false
           structured_output:
             enabled: false
@@ -1360,11 +1578,11 @@ workflow:
         height: 132
         id: llm_sql_repair
         position:
-          x: 2040
-          y: 620
+          x: 3460
+          y: 212
         positionAbsolute:
-          x: 2040
-          y: 620
+          x: 3460
+          y: 212
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1388,15 +1606,15 @@ workflow:
             \        \"natural_language_query\": user_query or \"\",\n        \"request_id\"\
             : str(uuid.uuid4()),\n        \"context\": {\n            \"source\": \"\
             dify\",\n            \"app\": \"text_to_sql_chatflow\",\n        },\n  \
-            \  }\n    request_json = json.dumps(payload, ensure_ascii=False, separators=(\",\",\
-            \ \":\"))\n    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
+            \  }\n    request_json = json.dumps(payload, ensure_ascii=False, separators=(\"\
+            ,\", \":\"))\n    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
             \    secret = (hmac_secret or \"\").strip()\n    if not secret:\n      \
             \  return {\n            \"request_json\": request_json,\n            \"\
             timestamp\": timestamp,\n            \"nonce\": nonce,\n            \"signature\"\
             : \"\",\n        }\n    signature = _sign(request_json, timestamp, nonce,\
-            \ secret)\n\n    return {\n        \"request_json\"\
-            : request_json,\n        \"timestamp\": timestamp,\n        \"nonce\": nonce,\n\
-            \        \"signature\": signature,\n    }\n"
+            \ secret)\n\n    return {\n        \"request_json\": request_json,\n   \
+            \     \"timestamp\": timestamp,\n        \"nonce\": nonce,\n        \"signature\"\
+            : signature,\n    }\n"
           code_language: python3
           desc: HMAC retry — cùng contract với node execute gốc
           outputs:
@@ -1427,8 +1645,8 @@ workflow:
               value_type: string
               variable: lfms_token
             - value_selector:
-                - sys
-                - query
+                - llm_rewrite_query
+                - text
               value_type: string
               variable: user_query
             - value_selector:
@@ -1439,11 +1657,11 @@ workflow:
         height: 96
         id: build_execute_request_retry
         position:
-          x: 2320
-          y: 620
+          x: 3802
+          y: 252
         positionAbsolute:
-          x: 2320
-          y: 620
+          x: 3802
+          y: 252
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1489,11 +1707,11 @@ workflow:
         height: 171
         id: lfms_execute_http_retry
         position:
-          x: 2600
-          y: 620
+          x: 4144
+          y: 230.5
         positionAbsolute:
-          x: 2600
-          y: 620
+          x: 4144
+          y: 230.5
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1501,97 +1719,50 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          code: |
-            import json
-
-            def _denial(parsed, message: str):
-                codes = []
-                names = []
-                if isinstance(parsed, dict):
-                    for v in parsed.get("violations") or []:
-                        if isinstance(v, dict):
-                            codes.append(str(v.get("code") or ""))
-                            names.append(str(v.get("name") or ""))
-                    codes.append(str(parsed.get("code") or ""))
-                text = (message or "") + " " + " ".join(codes) + " " + " ".join(names)
-                kind = ""
-                if "TABLE_DENIED" in text:
-                    kind = "TABLE_DENIED"
-                elif "COLUMN_DENIED" in text:
-                    kind = "COLUMN_DENIED"
-                retry = "true" if kind else "false"
-                return retry, kind, " ".join(n for n in names if n).strip()
-
-            def main(http_status, http_body: str) -> dict:
-                fail = {
-                    "is_ok": "false",
-                    "data_json": "[]",
-                    "row_count": "0",
-                    "error_message": "Không kết nối được LFMS SQL Gateway",
-                    "can_retry": "false",
-                    "denial_kind": "",
-                    "denied_name": "",
-                }
-                try:
-                    status = int(http_status or 0)
-                except (TypeError, ValueError):
-                    status = 0
-
-                body_text = (http_body or "").strip()
-                parsed = None
-                if body_text:
-                    try:
-                        parsed = json.loads(body_text)
-                    except json.JSONDecodeError:
-                        parsed = None
-
-                if status < 200 or status >= 300:
-                    extra = ""
-                    if isinstance(parsed, dict):
-                        code = parsed.get("code") or ""
-                        msg = parsed.get("message") or ""
-                        extra = (str(code) + " " + str(msg)).strip()
-                    elif body_text:
-                        extra = body_text[:500]
-                    err = f"LFMS lỗi HTTP {status}"
-                    if extra:
-                        err = err + " — " + extra
-                    if status in (401, 403) and (not extra or "HMAC" in extra or extra == ""):
-                        err = err + "\nGợi ý: điền DIFY_LFMS_HMAC_SECRET trên Dify (Workflow → Environment) trùng apps/.env LFMS. Secret rỗng = thiếu chữ ký."
-                    return {**fail, "error_message": err}
-
-                if not isinstance(parsed, dict):
-                    return {**fail, "error_message": "Phản hồi LFMS không hợp lệ"}
-
-                if bool(parsed.get("ok")):
-                    rows = parsed.get("data")
-                    if not isinstance(rows, list):
-                        rows = []
-                    try:
-                        row_count = int(parsed.get("row_count", len(rows)))
-                    except (TypeError, ValueError):
-                        row_count = len(rows)
-                    return {
-                        "is_ok": "true",
-                        "data_json": json.dumps(rows, ensure_ascii=False),
-                        "row_count": str(row_count),
-                        "error_message": "",
-                        "can_retry": "false",
-                        "denial_kind": "",
-                        "denied_name": "",
-                    }
-
-                message = parsed.get("message") or "Truy vấn không được phép"
-                retry, kind, denied_name = _denial(parsed, str(message))
-                return {
-                    "is_ok": "false",
-                    "data_json": "[]",
-                    "row_count": "0",
-                    "error_message": str(message),
-                    "can_retry": retry,
-                    "denial_kind": kind,
-                    "denied_name": denied_name,
-                }
+          code: "import json\n\ndef _denial(parsed, message: str):\n    codes = []\n\
+            \    names = []\n    if isinstance(parsed, dict):\n        for v in parsed.get(\"\
+            violations\") or []:\n            if isinstance(v, dict):\n            \
+            \    codes.append(str(v.get(\"code\") or \"\"))\n                names.append(str(v.get(\"\
+            name\") or \"\"))\n        codes.append(str(parsed.get(\"code\") or \"\"\
+            ))\n    text = (message or \"\") + \" \" + \" \".join(codes) + \" \" + \"\
+            \ \".join(names)\n    kind = \"\"\n    if \"TABLE_DENIED\" in text:\n  \
+            \      kind = \"TABLE_DENIED\"\n    elif \"COLUMN_DENIED\" in text:\n  \
+            \      kind = \"COLUMN_DENIED\"\n    retry = \"true\" if kind else \"false\"\
+            \n    return retry, kind, \" \".join(n for n in names if n).strip()\n\n\
+            def main(http_status, http_body: str) -> dict:\n    fail = {\n        \"\
+            is_ok\": \"false\",\n        \"data_json\": \"[]\",\n        \"row_count\"\
+            : \"0\",\n        \"error_message\": \"Không kết nối được LFMS SQL Gateway\"\
+            ,\n        \"can_retry\": \"false\",\n        \"denial_kind\": \"\",\n \
+            \       \"denied_name\": \"\",\n    }\n    try:\n        status = int(http_status\
+            \ or 0)\n    except (TypeError, ValueError):\n        status = 0\n\n   \
+            \ body_text = (http_body or \"\").strip()\n    parsed = None\n    if body_text:\n\
+            \        try:\n            parsed = json.loads(body_text)\n        except\
+            \ json.JSONDecodeError:\n            parsed = None\n\n    if status < 200\
+            \ or status >= 300:\n        extra = \"\"\n        if isinstance(parsed,\
+            \ dict):\n            code = parsed.get(\"code\") or \"\"\n            msg\
+            \ = parsed.get(\"message\") or \"\"\n            extra = (str(code) + \"\
+            \ \" + str(msg)).strip()\n        elif body_text:\n            extra = body_text[:500]\n\
+            \        err = f\"LFMS lỗi HTTP {status}\"\n        if extra:\n        \
+            \    err = err + \" — \" + extra\n        if status in (401, 403) and (not\
+            \ extra or \"HMAC\" in extra or extra == \"\"):\n            err = err +\
+            \ \"\\nGợi ý: điền DIFY_LFMS_HMAC_SECRET trên Dify (Workflow → Environment)\
+            \ trùng apps/.env LFMS. Secret rỗng = thiếu chữ ký.\"\n        return {**fail,\
+            \ \"error_message\": err}\n\n    if not isinstance(parsed, dict):\n    \
+            \    return {**fail, \"error_message\": \"Phản hồi LFMS không hợp lệ\"}\n\
+            \n    if bool(parsed.get(\"ok\")):\n        rows = parsed.get(\"data\")\n\
+            \        if not isinstance(rows, list):\n            rows = []\n       \
+            \ try:\n            row_count = int(parsed.get(\"row_count\", len(rows)))\n\
+            \        except (TypeError, ValueError):\n            row_count = len(rows)\n\
+            \        return {\n            \"is_ok\": \"true\",\n            \"data_json\"\
+            : json.dumps(rows, ensure_ascii=False),\n            \"row_count\": str(row_count),\n\
+            \            \"error_message\": \"\",\n            \"can_retry\": \"false\"\
+            ,\n            \"denial_kind\": \"\",\n            \"denied_name\": \"\"\
+            ,\n        }\n\n    message = parsed.get(\"message\") or \"Truy vấn không\
+            \ được phép\"\n    retry, kind, denied_name = _denial(parsed, str(message))\n\
+            \    return {\n        \"is_ok\": \"false\",\n        \"data_json\": \"\
+            []\",\n        \"row_count\": \"0\",\n        \"error_message\": str(message),\n\
+            \        \"can_retry\": retry,\n        \"denial_kind\": kind,\n       \
+            \ \"denied_name\": denied_name,\n    }\n"
           code_language: python3
           desc: Map { ok, data[], message } từ LFMS (lần 2)
           outputs:
@@ -1633,11 +1804,11 @@ workflow:
         height: 80
         id: parse_execute_response_retry
         position:
-          x: 2880
-          y: 620
+          x: 4486
+          y: 304.5
         positionAbsolute:
-          x: 2880
-          y: 620
+          x: 4486
+          y: 304.5
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1661,14 +1832,19 @@ workflow:
           selected: false
           title: Phân Luồng Kết Quả (retry)
           type: if-else
+          _targetBranches:
+            - id: 'true'
+              name: IF
+            - id: 'false'
+              name: ELSE
         height: 124
         id: retry_router
         position:
-          x: 3160
-          y: 620
+          x: 4828
+          y: 295.83333333333337
         positionAbsolute:
-          x: 3160
-          y: 620
+          x: 4828
+          y: 295.83333333333337
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1697,19 +1873,28 @@ workflow:
           prompt_template:
             - id: 765f1ce2-3e33-4d85-aeae-31b5861eefae
               role: system
-              text: 'Bạn trả lời câu hỏi nghiệp vụ LFMS bằng tiếng Việt dựa trên kết quả
-                truy vấn (JSON).
+              text: 'Bạn trả lời bằng đúng một JSON object. Không bọc trong markdown hay
+                khối code.
 
-                Không hiện SQL, tên bảng/cột, hay chi tiết kỹ thuật.
+                Schema mặc định: {"answer":"...","chart":null}
 
-                Tóm tắt rõ ràng; dùng bảng markdown nếu hữu ích.
-
+                answer: tiếng Việt, bảng markdown được. Không SQL, không tên bảng/cột.
                 Nếu data rỗng, nói rõ không có bản ghi phù hợp.
+
+                chart chỉ khi câu hỏi liên quan biểu đồ / so sánh trực quan / tỉ lệ /
+                xếp hạng (biểu đồ, pie, bar, top N, tỷ trọng) VÀ có ít nhất 2 điểm số.
+                Không vẽ khi tra cứu một bản ghi, danh sách chữ, câu hỏi có/không.
+
+                Khi vẽ, values là number (không string):
+
+                {"answer":"...","chart":{"type":"bar","title":"Công nợ theo khách hàng","labels":["A","B"],"values":[10,20]}}
+
+                type: bar hoặc line hoặc pie. Workflow sẽ gán labels/values vào ECharts.
 
                 '
             - id: ee0ad8dc-03fb-43cb-8532-6f67ca74d3f1
               role: user
-              text: 'Câu hỏi: {{#sys.query#}}
+              text: 'Câu hỏi: {{#llm_rewrite_query.text#}}
 
 
                 Số hàng: {{#parse_execute_response_retry.row_count#}}
@@ -1732,11 +1917,11 @@ workflow:
         height: 132
         id: llm_summarize_retry
         position:
-          x: 3440
-          y: 540
+          x: 5190
+          y: 215.13333333333333
         positionAbsolute:
-          x: 3440
-          y: 540
+          x: 5190
+          y: 215.13333333333333
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1744,7 +1929,7 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          answer: '{{#llm_summarize_retry.text#}}'
+          answer: '{{#parse_chart_payload_retry.user_message#}}'
           desc: ''
           selected: false
           title: Trả lời (retry)
@@ -1753,11 +1938,11 @@ workflow:
         height: 103
         id: answer_success_retry
         position:
-          x: 3720
-          y: 540
+          x: 5532
+          y: 251.63333333333333
         positionAbsolute:
-          x: 3720
-          y: 540
+          x: 5532
+          y: 251.63333333333333
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1765,30 +1950,63 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          code: |
-            def main(error_message: str, denial_kind: str, denied_name: str) -> dict:
-                msg = (error_message or "").strip()
-                kind = (denial_kind or "").strip()
-                name = (denied_name or "").strip()
-                if kind == "TABLE_DENIED":
-                    label = name or "nhóm dữ liệu này"
-                    user = (
-                        "Vai trò của bạn không xem được "
-                        + label
-                        + ". Hãy hỏi lại mà không cần tên văn phòng, phòng ban hay dữ liệu ngoài phạm vi."
-                    )
-                elif kind == "COLUMN_DENIED":
-                    label = name or "một trường"
-                    user = (
-                        "Vai trò của bạn không đọc được trường "
-                        + label
-                        + ". Hãy hỏi phiên bản không gồm thông tin nhạy cảm."
-                    )
-                else:
-                    user = msg if msg else "Không thực hiện được truy vấn với quyền hiện tại."
-                if "SELECT" in user.upper() or "```" in user:
-                    user = "Không thực hiện được truy vấn với quyền hiện tại. Hãy diễn đạt lại câu hỏi."
-                return {"user_message": user}
+          answer: "{{#parse_chart_payload_retry.user_message#}}\n\n{{#echarts_line_retry.text#}}"
+          desc: Bảng + markdown echarts từ plugin Line (retry)
+          selected: false
+          title: Trả lời + Line (retry)
+          type: answer
+          variables: []
+        height: 103
+        id: answer_success_line_retry
+        position:
+          x: 5874
+          y: 251
+        positionAbsolute:
+          x: 5874
+          y: 251
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          answer: "{{#parse_chart_payload_retry.user_message#}}\n\n{{#echarts_pie_retry.text#}}"
+          desc: Bảng + markdown echarts từ plugin Pie (retry)
+          selected: false
+          title: Trả lời + Pie (retry)
+          type: answer
+          variables: []
+        height: 103
+        id: answer_success_pie_retry
+        position:
+          x: 5874
+          y: 120
+        positionAbsolute:
+          x: 5874
+          y: 120
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          code: "def main(error_message: str, denial_kind: str, denied_name: str) ->\
+            \ dict:\n    msg = (error_message or \"\").strip()\n    kind = (denial_kind\
+            \ or \"\").strip()\n    name = (denied_name or \"\").strip()\n    if kind\
+            \ == \"TABLE_DENIED\":\n        label = name or \"nhóm dữ liệu này\"\n \
+            \       user = (\n            \"Vai trò của bạn không xem được \"\n    \
+            \        + label\n            + \". Hãy hỏi lại mà không cần tên văn phòng,\
+            \ phòng ban hay dữ liệu ngoài phạm vi.\"\n        )\n    elif kind == \"\
+            COLUMN_DENIED\":\n        label = name or \"một trường\"\n        user =\
+            \ (\n            \"Vai trò của bạn không đọc được trường \"\n          \
+            \  + label\n            + \". Hãy hỏi phiên bản không gồm thông tin nhạy\
+            \ cảm.\"\n        )\n    else:\n        user = msg if msg else \"Không thực\
+            \ hiện được truy vấn với quyền hiện tại.\"\n    if \"SELECT\" in user.upper()\
+            \ or \"```\" in user:\n        user = \"Không thực hiện được truy vấn với\
+            \ quyền hiện tại. Hãy diễn đạt lại câu hỏi.\"\n    return {\"user_message\"\
+            : user}\n"
           code_language: python3
           desc: Từ chối sau 1 lần sửa SQL — không in SQL
           outputs:
@@ -1817,11 +2035,11 @@ workflow:
         height: 96
         id: format_reject_retry
         position:
-          x: 3440
-          y: 740
+          x: 5190
+          y: 436.1333333333333
         positionAbsolute:
-          x: 3440
-          y: 740
+          x: 5190
+          y: 436.1333333333333
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1838,19 +2056,781 @@ workflow:
         height: 131
         id: answer_rejected_retry
         position:
-          x: 3720
-          y: 740
+          x: 5532
+          y: 434.6333333333333
         positionAbsolute:
-          x: 3720
-          y: 740
+          x: 5532
+          y: 434.6333333333333
         selected: false
         sourcePosition: right
         targetPosition: left
         type: custom
         width: 242
         zIndex: 0
+      - data:
+          code: "import json\n\ndef _num(v):\n    if v is None or isinstance(v, bool):\n        return None\n    if isinstance(v, (int, float)):\n        return float(v)\n    s = str(v).strip().replace(\",\", \"\").replace(\" \", \"\")\n    try:\n        return float(s)\n    except ValueError:\n        return None\n\ndef _strip_fence(raw):\n    t = (raw or \"\").strip()\n    if t.startswith(\"```\"):\n        n = t.find(\"\\n\")\n        t = t[n + 1 :] if n >= 0 else t[3:]\n        if t.endswith(\"```\"):\n            t = t[:-3].strip()\n    return t\n\ndef _obj(text):\n    t = _strip_fence(text)\n    try:\n        parsed = json.loads(t)\n        if isinstance(parsed, dict):\n            return parsed\n    except json.JSONDecodeError:\n        pass\n    a = t.find(\"{\")\n    b = t.rfind(\"}\")\n    if a >= 0 and b > a:\n        try:\n            parsed = json.loads(t[a : b + 1])\n            if isinstance(parsed, dict):\n                return parsed\n        except json.JSONDecodeError:\n            pass\n    return None\n\ndef _collapse(labs, nums):\n    \"\"\"Sum values for the same label so ECharts pie does not error on duplicates.\"\"\"\n    acc = []\n    idx = {}\n    for lab, num in zip(labs, nums):\n        key = (lab or \"\").strip() or \"-\"\n        f = float(num)\n        if key in idx:\n            i = idx[key]\n            acc[i][1] += f\n        else:\n            idx[key] = len(acc)\n            acc.append([key, f])\n    out_labs = []\n    out_nums = []\n    for key, f in acc:\n        out_labs.append(key.replace(\";\", \",\"))\n        out_nums.append(str(int(f) if f == int(f) else f))\n    return out_labs, out_nums\n\ndef main(llm_text=\"\"):\n    empty = {\n        \"user_message\": (llm_text or \"\").strip() or \"Khong co du lieu phu hop.\",\n        \"has_chart\": \"false\",\n        \"chart_kind\": \"line\",\n        \"chart_title\": \"Bieu do\",\n        \"chart_data\": \"0\",\n        \"chart_labels\": \"-\",\n    }\n    parsed = _obj(llm_text)\n    if not parsed:\n        return empty\n    msg = str(parsed.get(\"answer\") or \"\").strip() or empty[\"user_message\"]\n    chart = parsed.get(\"chart\")\n    if not isinstance(chart, dict):\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    title = chart.get(\"title\")\n    if isinstance(title, dict):\n        title = title.get(\"text\")\n    title = str(title or \"Bieu do\").strip() or \"Bieu do\"\n    labels = chart.get(\"labels\") or chart.get(\"categories\") or []\n    values = chart.get(\"values\") or chart.get(\"data\") or []\n    xa = chart.get(\"xAxis\")\n    if isinstance(xa, dict) and not labels:\n        labels = xa.get(\"data\") or []\n    series = chart.get(\"series\")\n    stype = str(chart.get(\"type\") or \"\")\n    if isinstance(series, list) and series and isinstance(series[0], dict):\n        stype = str(series[0].get(\"type\") or stype)\n        if not values:\n            values = series[0].get(\"data\") or []\n    labs = []\n    nums = []\n    if isinstance(values, list) and values and isinstance(values[0], dict):\n        for item in values:\n            if not isinstance(item, dict):\n                continue\n            f = _num(item.get(\"value\"))\n            if f is None:\n                continue\n            labs.append(str(item.get(\"name\") or \"\"))\n            nums.append(f)\n    elif isinstance(labels, list) and isinstance(values, list):\n        n = min(len(labels), len(values))\n        i = 0\n        while i < n:\n            f = _num(values[i])\n            if f is not None:\n                labs.append(str(labels[i] or \"\"))\n                nums.append(f)\n            i += 1\n    labs, nums = _collapse(labs, nums)\n    if len(nums) < 2:\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    raw_kind = stype.strip().lower()\n    if raw_kind in (\"pie\", \"donut\", \"rose\"):\n        kind = \"pie\"\n    elif raw_kind in (\"bar\", \"column\"):\n        kind = \"bar\"\n    else:\n        kind = \"line\"\n    return {\n        \"user_message\": msg,\n        \"has_chart\": \"true\",\n        \"chart_kind\": kind,\n        \"chart_title\": title,\n        \"chart_data\": \";\".join(nums),\n        \"chart_labels\": \";\".join(labs),\n    }\n"
+          code_language: python3
+          desc: Map LLM JSON answer/chart sang bien ECharts title data labels
+          outputs:
+            user_message:
+              children: null
+              type: string
+            chart_data:
+              children: null
+              type: string
+            chart_kind:
+              children: null
+              type: string
+            chart_labels:
+              children: null
+              type: string
+            chart_title:
+              children: null
+              type: string
+            has_chart:
+              children: null
+              type: string
+          selected: false
+          title: Parse Chart Payload
+          type: code
+          variables:
+            - value_selector:
+                - llm_summarize
+                - text
+              value_type: string
+              variable: llm_text
+        height: 80
+        id: parse_chart_payload
+        position:
+          x: 3802
+          y: -1.4
+        positionAbsolute:
+          x: 3802
+          y: -1.4
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          cases:
+            - case_id: 'true'
+              conditions:
+                - comparison_operator: is
+                  id: has-chart-check
+                  value: 'true'
+                  varType: string
+                  variable_selector:
+                    - parse_chart_payload
+                    - has_chart
+              id: 'true'
+              logical_operator: and
+          desc: Chỉ gọi ECharts khi LLM set chart
+          selected: false
+          title: Có Biểu Đồ
+          type: if-else
+          _targetBranches:
+            - id: 'true'
+              name: IF
+            - id: 'false'
+              name: ELSE
+        height: 124
+        id: chart_guard
+        position:
+          x: 4144
+          y: 8
+        positionAbsolute:
+          x: 4144
+          y: 8
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          cases:
+            - case_id: pie
+              conditions:
+                - comparison_operator: is
+                  id: chart-kind-check
+                  value: pie
+                  varType: string
+                  variable_selector:
+                    - parse_chart_payload
+                    - chart_kind
+              id: pie
+              logical_operator: and
+          desc: pie vs line/bar
+          selected: false
+          title: Loại Biểu Đồ
+          type: if-else
+          _targetBranches:
+            - id: pie
+              name: IF
+            - id: 'false'
+              name: ELSE
+        height: 124
+        id: chart_kind_router
+        position:
+          x: 4486
+          y: 8
+        positionAbsolute:
+          x: 4486
+          y: 8
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          is_team_authorization: true
+          paramSchemas:
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: chart title
+                ja_JP: chart title
+                pt_BR: chart title
+                zh_Hans: 图表的标题
+              input_schema: null
+              label:
+                en_US: title
+                ja_JP: title
+                pt_BR: title
+                zh_Hans: 标题
+              llm_description: chart title
+              max: null
+              min: null
+              multiple: false
+              name: title
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: data for generating chart, each number should be separated by ";"
+                ja_JP: data for generating chart, each number should be separated by ";"
+                pt_BR: data for generating chart, each number should be separated by ";"
+                zh_Hans: 用于生成饼图的数据，每个数字之间用 ";" 分隔
+              input_schema: null
+              label:
+                en_US: data
+                ja_JP: data
+                pt_BR: data
+                zh_Hans: 数据
+              llm_description: data for generating pie chart, data should be a string
+                contains a list of numbers like "1;2;3;4;5"
+              max: null
+              min: null
+              multiple: false
+              name: data
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: Categories for chart, each category should be separated by ";"
+                ja_JP: Categories for chart, each category should be separated by ";"
+                pt_BR: Categories for chart, each category should be separated by ";"
+                zh_Hans: 饼图的分类，每个分类之间用 ";" 分隔
+              input_schema: null
+              label:
+                en_US: Categories
+                ja_JP: Categories
+                pt_BR: Categories
+                zh_Hans: 分类
+              llm_description: categories for pie chart, categories should be a string
+                contains a list of texts like "a;b;c;1;2" in order to match the data,
+                each category should be split by ";"
+              max: null
+              min: null
+              multiple: false
+              name: categories
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+          params:
+            categories: ''
+            data: ''
+            title: ''
+          plugin_id: langgenius/echarts
+          plugin_unique_identifier: langgenius/echarts:0.0.8@4420ee90d39f2841a5eaa6d4facde605482cbadf4a246c0c4cfa5db06ffefb3c
+          provider_icon: /console/api/workspaces/current/plugin/icon?tenant_id=4e6c51ca-b16b-4abb-9c06-1f0595ed9536&filename=691511adfb91d182987c7e498dbf53b4b8e7bc65844d5b48ee26fcf661e8e1e7.svg
+          provider_icon_dark: /console/api/workspaces/current/plugin/icon?tenant_id=4e6c51ca-b16b-4abb-9c06-1f0595ed9536&filename=8e62596c7c7db0215566d36bca7d07dccbd6e9d319d6c05403f6f545aca5e1d2.svg
+          provider_id: langgenius/echarts/echarts
+          provider_name: langgenius/echarts/echarts
+          provider_show_name: ECharts Chart Generator
+          provider_type: builtin
+          selected: false
+          title: ECharts Pie
+          tool_configurations: {}
+          tool_description: Pie chart
+          tool_label: Pie Chart
+          tool_name: pie_chart
+          tool_node_version: '2'
+          tool_parameters:
+            categories:
+              type: variable
+              value:
+                - parse_chart_payload
+                - chart_labels
+            data:
+              type: variable
+              value:
+                - parse_chart_payload
+                - chart_data
+            title:
+              type: variable
+              value:
+                - parse_chart_payload
+                - chart_title
+          type: tool
+        height: 52
+        id: echarts_pie
+        position:
+          x: 4828
+          y: -40
+        positionAbsolute:
+          x: 4828
+          y: -40
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          is_team_authorization: true
+          paramSchemas:
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: chart title
+                ja_JP: chart title
+                pt_BR: chart title
+                zh_Hans: 图表的标题
+              input_schema: null
+              label:
+                en_US: title
+                ja_JP: title
+                pt_BR: title
+                zh_Hans: 标题
+              llm_description: chart title
+              max: null
+              min: null
+              multiple: false
+              name: title
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: data for generating chart, each number should be separated by ";"
+                ja_JP: data for generating chart, each number should be separated by ";"
+                pt_BR: data for generating chart, each number should be separated by ";"
+                zh_Hans: 用于生成线性图表的数据，每个数字之间用 ";" 分隔
+              input_schema: null
+              label:
+                en_US: data
+                ja_JP: data
+                pt_BR: data
+                zh_Hans: 数据
+              llm_description: data for generating linear chart, data should be a string
+                contains a list of numbers like "1;2;3;4;5"
+              max: null
+              min: null
+              multiple: false
+              name: data
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: X axis for chart, each text should be separated by ";"
+                ja_JP: X axis for chart, each text should be separated by ";"
+                pt_BR: X axis for chart, each text should be separated by ";"
+                zh_Hans: 线性图表的 x 轴，每个文本之间用 ";" 分隔
+              input_schema: null
+              label:
+                en_US: X Axis
+                ja_JP: X Axis
+                pt_BR: X Axis
+                zh_Hans: x 轴
+              llm_description: x axis for linear chart, x axis should be a string contains
+                a list of texts like "a;b;c;1;2" in order to match the data
+              max: null
+              min: null
+              multiple: false
+              name: x_axis
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+          params:
+            data: ''
+            title: ''
+            x_axis: ''
+          plugin_id: langgenius/echarts
+          plugin_unique_identifier: langgenius/echarts:0.0.8@4420ee90d39f2841a5eaa6d4facde605482cbadf4a246c0c4cfa5db06ffefb3c
+          provider_icon: /console/api/workspaces/current/plugin/icon?tenant_id=4e6c51ca-b16b-4abb-9c06-1f0595ed9536&filename=691511adfb91d182987c7e498dbf53b4b8e7bc65844d5b48ee26fcf661e8e1e7.svg
+          provider_icon_dark: /console/api/workspaces/current/plugin/icon?tenant_id=4e6c51ca-b16b-4abb-9c06-1f0595ed9536&filename=8e62596c7c7db0215566d36bca7d07dccbd6e9d319d6c05403f6f545aca5e1d2.svg
+          provider_id: langgenius/echarts/echarts
+          provider_name: langgenius/echarts/echarts
+          provider_show_name: ECharts Chart Generator
+          provider_type: builtin
+          selected: false
+          title: ECharts Line
+          tool_configurations: {}
+          tool_description: linear chart
+          tool_label: Linear Chart
+          tool_name: line_chart
+          tool_node_version: '2'
+          tool_parameters:
+            data:
+              type: variable
+              value:
+                - parse_chart_payload
+                - chart_data
+            title:
+              type: variable
+              value:
+                - parse_chart_payload
+                - chart_title
+            x_axis:
+              type: variable
+              value:
+                - parse_chart_payload
+                - chart_labels
+          type: tool
+        height: 52
+        id: echarts_line
+        position:
+          x: 4828
+          y: 80
+        positionAbsolute:
+          x: 4828
+          y: 80
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          code: "import json\n\ndef _num(v):\n    if v is None or isinstance(v, bool):\n        return None\n    if isinstance(v, (int, float)):\n        return float(v)\n    s = str(v).strip().replace(\",\", \"\").replace(\" \", \"\")\n    try:\n        return float(s)\n    except ValueError:\n        return None\n\ndef _strip_fence(raw):\n    t = (raw or \"\").strip()\n    if t.startswith(\"```\"):\n        n = t.find(\"\\n\")\n        t = t[n + 1 :] if n >= 0 else t[3:]\n        if t.endswith(\"```\"):\n            t = t[:-3].strip()\n    return t\n\ndef _obj(text):\n    t = _strip_fence(text)\n    try:\n        parsed = json.loads(t)\n        if isinstance(parsed, dict):\n            return parsed\n    except json.JSONDecodeError:\n        pass\n    a = t.find(\"{\")\n    b = t.rfind(\"}\")\n    if a >= 0 and b > a:\n        try:\n            parsed = json.loads(t[a : b + 1])\n            if isinstance(parsed, dict):\n                return parsed\n        except json.JSONDecodeError:\n            pass\n    return None\n\ndef _collapse(labs, nums):\n    \"\"\"Sum values for the same label so ECharts pie does not error on duplicates.\"\"\"\n    acc = []\n    idx = {}\n    for lab, num in zip(labs, nums):\n        key = (lab or \"\").strip() or \"-\"\n        f = float(num)\n        if key in idx:\n            i = idx[key]\n            acc[i][1] += f\n        else:\n            idx[key] = len(acc)\n            acc.append([key, f])\n    out_labs = []\n    out_nums = []\n    for key, f in acc:\n        out_labs.append(key.replace(\";\", \",\"))\n        out_nums.append(str(int(f) if f == int(f) else f))\n    return out_labs, out_nums\n\ndef main(llm_text=\"\"):\n    empty = {\n        \"user_message\": (llm_text or \"\").strip() or \"Khong co du lieu phu hop.\",\n        \"has_chart\": \"false\",\n        \"chart_kind\": \"line\",\n        \"chart_title\": \"Bieu do\",\n        \"chart_data\": \"0\",\n        \"chart_labels\": \"-\",\n    }\n    parsed = _obj(llm_text)\n    if not parsed:\n        return empty\n    msg = str(parsed.get(\"answer\") or \"\").strip() or empty[\"user_message\"]\n    chart = parsed.get(\"chart\")\n    if not isinstance(chart, dict):\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    title = chart.get(\"title\")\n    if isinstance(title, dict):\n        title = title.get(\"text\")\n    title = str(title or \"Bieu do\").strip() or \"Bieu do\"\n    labels = chart.get(\"labels\") or chart.get(\"categories\") or []\n    values = chart.get(\"values\") or chart.get(\"data\") or []\n    xa = chart.get(\"xAxis\")\n    if isinstance(xa, dict) and not labels:\n        labels = xa.get(\"data\") or []\n    series = chart.get(\"series\")\n    stype = str(chart.get(\"type\") or \"\")\n    if isinstance(series, list) and series and isinstance(series[0], dict):\n        stype = str(series[0].get(\"type\") or stype)\n        if not values:\n            values = series[0].get(\"data\") or []\n    labs = []\n    nums = []\n    if isinstance(values, list) and values and isinstance(values[0], dict):\n        for item in values:\n            if not isinstance(item, dict):\n                continue\n            f = _num(item.get(\"value\"))\n            if f is None:\n                continue\n            labs.append(str(item.get(\"name\") or \"\"))\n            nums.append(f)\n    elif isinstance(labels, list) and isinstance(values, list):\n        n = min(len(labels), len(values))\n        i = 0\n        while i < n:\n            f = _num(values[i])\n            if f is not None:\n                labs.append(str(labels[i] or \"\"))\n                nums.append(f)\n            i += 1\n    labs, nums = _collapse(labs, nums)\n    if len(nums) < 2:\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    raw_kind = stype.strip().lower()\n    if raw_kind in (\"pie\", \"donut\", \"rose\"):\n        kind = \"pie\"\n    elif raw_kind in (\"bar\", \"column\"):\n        kind = \"bar\"\n    else:\n        kind = \"line\"\n    return {\n        \"user_message\": msg,\n        \"has_chart\": \"true\",\n        \"chart_kind\": kind,\n        \"chart_title\": title,\n        \"chart_data\": \";\".join(nums),\n        \"chart_labels\": \";\".join(labs),\n    }\n"
+          code_language: python3
+          desc: Map LLM JSON answer/chart sang bien ECharts title data labels
+          outputs:
+            user_message:
+              children: null
+              type: string
+            chart_data:
+              children: null
+              type: string
+            chart_kind:
+              children: null
+              type: string
+            chart_labels:
+              children: null
+              type: string
+            chart_title:
+              children: null
+              type: string
+            has_chart:
+              children: null
+              type: string
+          selected: false
+          title: Parse Chart Payload (retry)
+          type: code
+          variables:
+            - value_selector:
+                - llm_summarize_retry
+                - text
+              value_type: string
+              variable: llm_text
+        height: 80
+        id: parse_chart_payload_retry
+        position:
+          x: 5532
+          y: 215
+        positionAbsolute:
+          x: 5532
+          y: 215
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          cases:
+            - case_id: 'true'
+              conditions:
+                - comparison_operator: is
+                  id: has-chart-check-retry
+                  value: 'true'
+                  varType: string
+                  variable_selector:
+                    - parse_chart_payload_retry
+                    - has_chart
+              id: 'true'
+              logical_operator: and
+          desc: Chỉ gọi ECharts khi LLM set chart
+          selected: false
+          title: Có Biểu Đồ (retry)
+          type: if-else
+          _targetBranches:
+            - id: 'true'
+              name: IF
+            - id: 'false'
+              name: ELSE
+        height: 124
+        id: chart_guard_retry
+        position:
+          x: 5874
+          y: 223
+        positionAbsolute:
+          x: 5874
+          y: 223
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          cases:
+            - case_id: pie
+              conditions:
+                - comparison_operator: is
+                  id: chart-kind-check-retry
+                  value: pie
+                  varType: string
+                  variable_selector:
+                    - parse_chart_payload_retry
+                    - chart_kind
+              id: pie
+              logical_operator: and
+          desc: pie vs line/bar
+          selected: false
+          title: Loại Biểu Đồ (retry)
+          type: if-else
+          _targetBranches:
+            - id: pie
+              name: IF
+            - id: 'false'
+              name: ELSE
+        height: 124
+        id: chart_kind_router_retry
+        position:
+          x: 6216
+          y: 223
+        positionAbsolute:
+          x: 6216
+          y: 223
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          is_team_authorization: true
+          paramSchemas:
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: chart title
+                ja_JP: chart title
+                pt_BR: chart title
+                zh_Hans: 图表的标题
+              input_schema: null
+              label:
+                en_US: title
+                ja_JP: title
+                pt_BR: title
+                zh_Hans: 标题
+              llm_description: chart title
+              max: null
+              min: null
+              multiple: false
+              name: title
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: data for generating chart, each number should be separated by ";"
+                ja_JP: data for generating chart, each number should be separated by ";"
+                pt_BR: data for generating chart, each number should be separated by ";"
+                zh_Hans: 用于生成饼图的数据，每个数字之间用 ";" 分隔
+              input_schema: null
+              label:
+                en_US: data
+                ja_JP: data
+                pt_BR: data
+                zh_Hans: 数据
+              llm_description: data for generating pie chart, data should be a string
+                contains a list of numbers like "1;2;3;4;5"
+              max: null
+              min: null
+              multiple: false
+              name: data
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: Categories for chart, each category should be separated by ";"
+                ja_JP: Categories for chart, each category should be separated by ";"
+                pt_BR: Categories for chart, each category should be separated by ";"
+                zh_Hans: 饼图的分类，每个分类之间用 ";" 分隔
+              input_schema: null
+              label:
+                en_US: Categories
+                ja_JP: Categories
+                pt_BR: Categories
+                zh_Hans: 分类
+              llm_description: categories for pie chart, categories should be a string
+                contains a list of texts like "a;b;c;1;2" in order to match the data,
+                each category should be split by ";"
+              max: null
+              min: null
+              multiple: false
+              name: categories
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+          params:
+            categories: ''
+            data: ''
+            title: ''
+          plugin_id: langgenius/echarts
+          plugin_unique_identifier: langgenius/echarts:0.0.8@4420ee90d39f2841a5eaa6d4facde605482cbadf4a246c0c4cfa5db06ffefb3c
+          provider_icon: /console/api/workspaces/current/plugin/icon?tenant_id=4e6c51ca-b16b-4abb-9c06-1f0595ed9536&filename=691511adfb91d182987c7e498dbf53b4b8e7bc65844d5b48ee26fcf661e8e1e7.svg
+          provider_icon_dark: /console/api/workspaces/current/plugin/icon?tenant_id=4e6c51ca-b16b-4abb-9c06-1f0595ed9536&filename=8e62596c7c7db0215566d36bca7d07dccbd6e9d319d6c05403f6f545aca5e1d2.svg
+          provider_id: langgenius/echarts/echarts
+          provider_name: langgenius/echarts/echarts
+          provider_show_name: ECharts Chart Generator
+          provider_type: builtin
+          selected: false
+          title: ECharts Pie (retry)
+          tool_configurations: {}
+          tool_description: Pie chart
+          tool_label: Pie Chart
+          tool_name: pie_chart
+          tool_node_version: '2'
+          tool_parameters:
+            categories:
+              type: variable
+              value:
+                - parse_chart_payload_retry
+                - chart_labels
+            data:
+              type: variable
+              value:
+                - parse_chart_payload_retry
+                - chart_data
+            title:
+              type: variable
+              value:
+                - parse_chart_payload_retry
+                - chart_title
+          type: tool
+        height: 52
+        id: echarts_pie_retry
+        position:
+          x: 6558
+          y: 180
+        positionAbsolute:
+          x: 6558
+          y: 180
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+      - data:
+          is_team_authorization: true
+          paramSchemas:
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: chart title
+                ja_JP: chart title
+                pt_BR: chart title
+                zh_Hans: 图表的标题
+              input_schema: null
+              label:
+                en_US: title
+                ja_JP: title
+                pt_BR: title
+                zh_Hans: 标题
+              llm_description: chart title
+              max: null
+              min: null
+              multiple: false
+              name: title
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: data for generating chart, each number should be separated by ";"
+                ja_JP: data for generating chart, each number should be separated by ";"
+                pt_BR: data for generating chart, each number should be separated by ";"
+                zh_Hans: 用于生成线性图表的数据，每个数字之间用 ";" 分隔
+              input_schema: null
+              label:
+                en_US: data
+                ja_JP: data
+                pt_BR: data
+                zh_Hans: 数据
+              llm_description: data for generating linear chart, data should be a string
+                contains a list of numbers like "1;2;3;4;5"
+              max: null
+              min: null
+              multiple: false
+              name: data
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+            - auto_generate: null
+              default: null
+              form: llm
+              human_description:
+                en_US: X axis for chart, each text should be separated by ";"
+                ja_JP: X axis for chart, each text should be separated by ";"
+                pt_BR: X axis for chart, each text should be separated by ";"
+                zh_Hans: 线性图表的 x 轴，每个文本之间用 ";" 分隔
+              input_schema: null
+              label:
+                en_US: X Axis
+                ja_JP: X Axis
+                pt_BR: X Axis
+                zh_Hans: x 轴
+              llm_description: x axis for linear chart, x axis should be a string contains
+                a list of texts like "a;b;c;1;2" in order to match the data
+              max: null
+              min: null
+              multiple: false
+              name: x_axis
+              options: []
+              placeholder: null
+              precision: null
+              required: true
+              scope: null
+              template: null
+              type: string
+          params:
+            data: ''
+            title: ''
+            x_axis: ''
+          plugin_id: langgenius/echarts
+          plugin_unique_identifier: langgenius/echarts:0.0.8@4420ee90d39f2841a5eaa6d4facde605482cbadf4a246c0c4cfa5db06ffefb3c
+          provider_icon: /console/api/workspaces/current/plugin/icon?tenant_id=4e6c51ca-b16b-4abb-9c06-1f0595ed9536&filename=691511adfb91d182987c7e498dbf53b4b8e7bc65844d5b48ee26fcf661e8e1e7.svg
+          provider_icon_dark: /console/api/workspaces/current/plugin/icon?tenant_id=4e6c51ca-b16b-4abb-9c06-1f0595ed9536&filename=8e62596c7c7db0215566d36bca7d07dccbd6e9d319d6c05403f6f545aca5e1d2.svg
+          provider_id: langgenius/echarts/echarts
+          provider_name: langgenius/echarts/echarts
+          provider_show_name: ECharts Chart Generator
+          provider_type: builtin
+          selected: false
+          title: ECharts Line (retry)
+          tool_configurations: {}
+          tool_description: linear chart
+          tool_label: Linear Chart
+          tool_name: line_chart
+          tool_node_version: '2'
+          tool_parameters:
+            data:
+              type: variable
+              value:
+                - parse_chart_payload_retry
+                - chart_data
+            title:
+              type: variable
+              value:
+                - parse_chart_payload_retry
+                - chart_title
+            x_axis:
+              type: variable
+              value:
+                - parse_chart_payload_retry
+                - chart_labels
+          type: tool
+        height: 52
+        id: echarts_line_retry
+        position:
+          x: 6558
+          y: 300
+        positionAbsolute:
+          x: 6558
+          y: 300
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
     viewport:
-      x: 31.973931933381664
-      y: 255.34938450398263
-      zoom: 0.5503258508327299
+      x: -2110.0999999999995
+      y: 122.05000000000001
+      zoom: 0.7
   rag_pipeline_variables: []

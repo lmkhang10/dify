@@ -24,6 +24,8 @@ Columns:
 
 PII (cần SeePii): email, phone, phone_secondary, address, id_number, id_issued_date, id_issued_place, date_of_birth, tax_code, business_registration_number, representative_name, representative_id_number.
 
+Tìm theo tên: `LOWER(name) LIKE CONCAT('%', LOWER('an khang'), '%')` — không `name = 'TM AN Khang'`.
+
 Sample:
 
 - Khách active: SELECT id, code, name, type, status FROM clients WHERE profile_kind = 'client' AND status = 'active' AND deleted_at IS NULL LIMIT 100

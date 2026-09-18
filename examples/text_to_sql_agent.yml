@@ -3,22 +3,28 @@ kind: app
 app:
   name: Text-to-SQL Agent (LFMS)
   description: |
-    Agent v2: Skill quy tắc SQL + Knowledge schema + plugin database.
+    Agent debug (/agent/) — KHÔNG có canvas workflow. Debug node: Chatflow
+    text_to_sql_workflow_agent.yml + Show workflow steps.
 
-    Import tạo Agent App. Skill archive không nằm trong DSL — upload
-    examples/skills/lfms-sql-guarded.skill rồi gắn vào Agent.
-    Knowledge sets để trống: gắn dataset LFMS schema trong composer.
-    Authorize plugin hjlarry/database (db_uri workspace) rồi chọn model.
-    Khách không nhập connection string — xem examples/README.md.
+    User Input:
+    - lfms_api_base = https://lfms-dev.truyenfox.net
+    - lfms_token = JWT thô. Tab đã login LFMS, Console:
+
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? ''
+    const xsrf = decodeURIComponent((document.cookie.match(/(?:^|; *)XSRF-TOKEN=([^;]+)/) || [])[1] ?? '')
+    const res = await fetch('https://lfms-dev.truyenfox.net/api/embed/dify-token', {
+      method: 'POST', credentials: 'include',
+      headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+        ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}), ...(xsrf ? { 'X-XSRF-TOKEN': xsrf } : {}) },
+    })
+    const body = await res.json(); console.log(res.status, body); copy(body.embed_token)
+
+    HMAC: Environment DIFY_LFMS_HMAC_SECRET. Khách dùng Chatflow /chatbot/ + bubble.
   icon: 🧭
   icon_background: '#E8F3FF'
   mode: agent
   use_icon_as_answer_icon: false
-dependencies:
-  - type: marketplace
-    value:
-      marketplace_plugin_unique_identifier: hjlarry/database:0.0.5
-    current_identifier: null
+dependencies: []
 agent:
   package_ref: agent_1
 agent_packages:
@@ -26,7 +32,7 @@ agent_packages:
     schema_version: 1
     metadata:
       name: LFMS Text-to-SQL
-      description: Read-only SQL agent for lfms_db
+      description: Read-only SQL via LFMS gateway (embed JWT + HMAC)
       role: sql analyst
       icon_type: emoji
       icon: 🧭
@@ -46,48 +52,18 @@ agent_packages:
       schema_version: 1
       prompt:
         system_prompt: |
-          You are a read-only MySQL analyst for LFMS (law-firm).
-          Follow skill lfms-sql-guarded (Policy block). Use Knowledge first; call table_schema if columns unclear.
-          Credentials are authorized — never ask for db_uri; omit db_uri on tool calls.
+          You are a read-only MySQL analyst for LFMS. This Agent Studio app cannot
+          call LFMS execute unless the operator pasted lfms_token. Prefer telling
+          the user to use the LFMS Admin chat bubble (Chatflow).
 
-          LANGUAGE: Always reply in Vietnamese — status, errors, and final answer.
-          Never switch to English prose unless the user explicitly asks for English.
+          If lfms_token or lfms_api_base is empty, do not invent SQL results.
+          Reply in Vietnamese: mo bubble LFMS hoac dan JWT tu console fetch
+          POST https://lfms-dev.truyenfox.net/api/embed/dify-token va
+          lfms_api_base=https://lfms-dev.truyenfox.net.
 
-          SECURITY — never expose SQL or schema to end users:
-          - Do NOT print SQL (no fenced sql blocks, no inline SELECT) in any visible message.
-          - Do NOT echo table/column names, JOIN, or WHERE in chat unless user explicitly asks for technical details.
-          - SQL goes only to sql_execute tool arguments — never into the chat text.
-
-          BEFORE any tool call, write one short business line in the visible message:
-          **Đang xử lý:** <1 dòng tiếng Việt, mô tả nghiệp vụ, không kỹ thuật>
-
-          Then call sql_execute internally (SELECT only, LIMIT 100,
-          deleted_at IS NULL on clients/cases/contracts/tasks, never users.password).
-
-          After tool result: tóm tắt tiếng Việt + bảng markdown nếu hữu ích.
-          Không SQL, không liệt kê bảng/cột kỹ thuật trong câu trả lời cuối.
+          Always reply in Vietnamese. Never print SQL.
       tools:
-        dify_tools:
-          - enabled: true
-            provider_type: builtin
-            provider_id: hjlarry/database/database
-            plugin_id: hjlarry/database
-            provider: database
-            tool_name: sql_execute
-            credential_type: unauthorized
-            credential_ref: null
-            description: Execute a SQL query
-            runtime_parameters: {}
-          - enabled: true
-            provider_type: builtin
-            provider_id: hjlarry/database/database
-            plugin_id: hjlarry/database
-            provider: database
-            tool_name: table_schema
-            credential_type: unauthorized
-            credential_ref: null
-            description: Get live table schema from the database
-            runtime_parameters: {}
+        dify_tools: []
         cli_tools: []
       knowledge:
         sets: []
@@ -107,10 +83,20 @@ agent_packages:
           hash: null
           mime_type: application/zip
       config_files: []
-      config_note: ''
+      config_note: |
+        lfms_api_base = https://lfms-dev.truyenfox.net
+        lfms_token: console fetch POST /api/embed/dify-token tren tab login LFMS.
       sandbox: {}
       memory: {}
       model: null
       app_features: {}
-      app_variables: []
+      app_variables:
+        - name: lfms_token
+          type: paragraph
+          required: false
+          default: ''
+        - name: lfms_api_base
+          type: paragraph
+          required: false
+          default: https://lfms-dev.truyenfox.net
       misc_legacy: {}

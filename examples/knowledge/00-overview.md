@@ -15,10 +15,10 @@ LFMS tự chèn lọc tenant (`organization_id`) — SQL sinh ra **không** JOIN
 - vụ tố tụng → **cases** WHERE `category = 'litigation'`
 - vụ dịch vụ pháp lý → **cases** WHERE `category = 'legal_service'`
 - hợp đồng / giá trị HĐ / doanh thu HĐ → **contracts.payment_amount** (không `total_amount`)
-- đợt thu / lần thu tiền → **payments** (qua `contract_id`)
+- đợt thu / lần thu tiền / còn nợ → **payments** (`status`: pending/succeeded/cancelled — **cấm paid/unpaid**; `direction`: in/out)
 - công việc → **tasks**; người làm → **task_assignees**
 - tài liệu → **documents**
-- công văn → **official_dispatches**
+- công văn → **official_dispatches** (`direction`: incoming/outgoing)
 - lịch nội bộ → **custom_calendar_events**
 - nhật ký hệ thống → **audit_logs**
 - báo cáo tổng hợp → **report_daily_finance / cases / leads / staff** (ưu tiên hơn SUM bảng gốc)
@@ -44,3 +44,5 @@ LFMS tự chèn lọc tenant (`organization_id`) — SQL sinh ra **không** JOIN
 Không JOIN organizations / departments / case_types chỉ để lấy tên — trả id.
 
 LIMIT 100 trừ COUNT/SUM/AVG. Không subquery, UNION, WITH, SELECT *.
+
+Follow-up ("khách đó", "còn nợ thì sao") giữ cùng tên/mã lượt trước — xem `followups.md`. Không JOIN organizations.

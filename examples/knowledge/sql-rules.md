@@ -13,11 +13,21 @@ LFMS từ chối **cả câu** nếu một bảng trong FROM/JOIN không thuộc
 7. Soft-delete: `deleted_at IS NULL` trên clients, cases, contracts, tasks, official_dispatches, documents, handbook_articles, organizations (nếu được phép).
 8. LIMIT 100 trừ COUNT/SUM/AVG.
 
+## Tên khách / công ty
+
+Không `clients.name = 'TM AN Khang'`. Tên trên UI thường rút; DB là tên đầy đủ (vd. Công ty TNHH TM An Khang). Dùng:
+
+`LOWER(clients.name) LIKE CONCAT('%', LOWER('an khang'), '%')`
+
+Lấy 1–3 token đặc trưng (bỏ Công ty, TNHH, TM nếu còn nhiều kết quả thì giữ TM).
+
+Công nợ **một khách**: `SUM(p.amount)` đợt `pending` + `in` (JOIN clients + contracts + payments). **Cấm** `status = 'paid'` / `'unpaid'`. **Cấm** `SUM(ct.payment_amount) - SUM(p.amount)` trên cùng JOIN (fan-out nhân giá trị HĐ). Tổng văn phòng: `report_daily_finance.receivable_total` ngày cuối kỳ, không SUM stock.
+
 ## Mapping tiền
 
 - Giá trị / doanh thu hợp đồng → `contracts.payment_amount` (+ `payment_currency`). Không `amount` trừ khi hỏi cột legacy.
 - Đợt thu thực tế → `payments.amount` qua `contract_id`.
-- Tổng hợp tài chính theo ngày → `report_daily_finance` (FLOW: collected_in/out, contracts_signed__; STOCK: receivable__ lấy ngày cuối kỳ, không SUM).
+- Tổng hợp tài chính theo ngày → `report_daily_finance` (FLOW: `collected_in`/`out`, `contracts_signed_*`; STOCK: `receivable_*` lấy ngày cuối kỳ, không SUM).
 
 ## Domain filters (LFMS cũng chèn; LLM nên ghi rõ)
 
@@ -28,7 +38,7 @@ LFMS từ chối **cả câu** nếu một bảng trong FROM/JOIN không thuộc
 
 ## Bảng không whitelist — không dạy, không query
 
-service_plans, organization_subscriptions, case_checklist_items, workflow_versions, workflow_keys, vanna__, password_reset_tokens, sessions, roles, role_user, zl__, official_dispatch_histories, handbook_keywords, report_daily_finance_by_dim.
+service_plans, organization_subscriptions, case_checklist_items, workflow_versions, workflow_keys, `vanna_*`, password_reset_tokens, sessions, roles, role_user, `zl_*`, official_dispatch_histories, handbook_keywords, report_daily_finance_by_dim.
 
 ## Cột luôn cấm
 
@@ -36,8 +46,8 @@ users.password, users.remember_token. Không SELECT smtp_password, is_super_admi
 
 ## Cột PII / tiền (thiếu cờ → COLUMN_DENIED)
 
-PII: clients.email/phone/address/id_number/tax_code/…; users.email/phone/note; contracts.referrer_name; official_dispatches.counterparty__; audit_logs.ip_address/user_agent.
-Tiền: payments.amount/currency; contracts.payment_amount/currency/due_date/description; report_daily_finance collected__/receivable_total/not_due/contracts_signed_value; report_daily_staff.collected_attributed.
+PII: `clients` email/phone/address/id_number/tax_code; `users` email/phone/note; `contracts.referrer_name`; `official_dispatches` counterparty__; `audit_logs` ip_address/user_agent.
+Tiền: `payments.amount`/`currency`; `contracts.payment_*`; `report_daily_finance` collected__/receivable_*/contracts_signed_value; `report_daily_staff.collected_attributed`.
 
 Khi thiếu cờ: bỏ cột đó, vẫn trả các cột khác.
 
@@ -54,3 +64,23 @@ LIMIT 100
 ```
 
 Không JOIN organizations. Không JOIN users.
+
+## Ví dụ đúng: còn nợ khách (đợt chưa thu)
+
+```sql
+SELECT c.id, c.name, SUM(p.amount) AS con_no
+FROM clients c
+INNER JOIN contracts ct ON ct.client_id = c.id AND ct.deleted_at IS NULL AND ct.is_canceled = 0
+INNER JOIN payments p ON p.contract_id = ct.id
+WHERE c.deleted_at IS NULL AND c.profile_kind = 'client'
+  AND p.status = 'pending' AND p.direction = 'in'
+  AND LOWER(c.name) LIKE CONCAT('%', LOWER('an khang'), '%')
+GROUP BY c.id, c.name
+LIMIT 100
+```
+
+Sai: `p.status = 'paid'` hoặc `'unpaid'`. Sai: trừ `SUM(ct.payment_amount)` sau LEFT JOIN payments.
+
+## Follow-up (cùng khách)
+
+Sau "doanh thu An Khang", câu "còn nợ?" phải LIKE `'%an khang%'` và `payments.status = 'pending' AND direction = 'in'`. Không bỏ tên khách. Xem `followups.md`.

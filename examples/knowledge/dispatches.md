@@ -6,7 +6,7 @@ Columns:
 
 - id (bigint, PK)
 - organization_id (bigint)
-- direction (varchar): inbound | outbound (kiểm tra giá trị thực tế inbound/outbound hoặc in/out trong dữ liệu)
+- direction (varchar, enum `DispatchDirection`): **incoming** | **outgoing** — **không có** `inbound`/`outbound`/`in`/`out`
 - code (varchar, nullable)
 - title (varchar)
 - summary (text)
@@ -14,7 +14,9 @@ Columns:
 - issued_date, received_date, deadline (date)
 - legal_case_id (bigint, FK cases, nullable) — trả id
 - reply_to_id (bigint, nullable)
-- status (varchar)
+- status (varchar, enum `DispatchStatus` — tập giá trị khác nhau theo `direction`):
+  - `direction = 'incoming'`: received | processing | replied | completed | canceled
+  - `direction = 'outgoing'`: draft | pending_sign | signed | sent | acknowledged
 - assignee_id, created_by, signer_id, signed_by, sent_by (bigint, nullable)
 - signed_at, sent_at, completed_at (timestamp)
 - sent_via (varchar)
@@ -26,3 +28,6 @@ Không query official_dispatch_histories / official_dispatch_task (không whitel
 
 Sample:
 SELECT id, direction, code, title, status, deadline, legal_case_id FROM official_dispatches WHERE deleted_at IS NULL LIMIT 100
+
+Sample — công văn đến chưa xử lý:
+SELECT id, code, title, status, deadline FROM official_dispatches WHERE deleted_at IS NULL AND direction = 'incoming' AND status IN ('received', 'processing') LIMIT 100
