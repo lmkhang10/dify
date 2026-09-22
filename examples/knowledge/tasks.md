@@ -10,7 +10,7 @@ Columns:
 - description (text)
 - internal_notes (text)
 - case_id (bigint, FK cases.id, nullable)
-- created_by (bigint, nullable)
+- created_by (bigint, nullable) — "của tôi" không lọc cột này tay; LFMS Mine = assignee (task_assignees) OR created_by OR vụ attachedTo
 - task_group_id (bigint, nullable)
 - is_confirm (tinyint)
 - priority (varchar): emergency | high | medium | low
@@ -25,3 +25,5 @@ Hoàn thành: `progress = 100` hoặc `is_confirm = 1`. Quá hạn: `due_date < 
 Sample:
 
 - Việc quá hạn: SELECT id, title, case_id, due_date, progress, priority FROM tasks WHERE deleted_at IS NULL AND due_date < CURDATE() AND progress < 100 LIMIT 100
+
+Của tôi / việc tôi làm: `SELECT id, title, due_date, progress FROM tasks WHERE deleted_at IS NULL`. Không JOIN users. Không `user_id = 12`. JOIN `task_assignees` chỉ khi hỏi người làm của một việc (không phải "của tôi").

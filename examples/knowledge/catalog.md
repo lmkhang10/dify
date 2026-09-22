@@ -1,6 +1,6 @@
 # Tables: departments, case_types (Catalog)
 
-Chỉ query khi người dùng hỏi danh mục phòng ban / loại vụ. Không JOIN vào cases/users chỉ để lấy tên.
+Danh mục: hỏi phòng ban / loại vụ thì SELECT từ đây. **Lọc vụ theo tên loại** (vd. khởi kiện thu hồi nợ): JOIN `case_types` vào `cases`, không đoán COUNT.
 
 ## departments
 

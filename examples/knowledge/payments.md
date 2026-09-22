@@ -1,6 +1,6 @@
 # Table: payments
 
-Đợt thu / sổ cái theo lần (installment). Header tiền HĐ nằm trên `contracts.payment_*`. Tenant: LFMS lọc qua EXISTS contracts (không viết subquery).
+Đợt thu / sổ cái theo lần (installment). Header tiền HĐ nằm trên `contracts.payment_*`. Tenant: LFMS lọc qua EXISTS contracts (LLM không cần viết EXISTS tenant).
 
 Columns:
 
@@ -15,7 +15,7 @@ Columns:
 - status (varchar, enum `PaymentHistoryStatus`): pending | succeeded | cancelled — **không có** `paid`/`unpaid`
 - direction (varchar, enum `PaymentDirection`): in | out — **không có** `inbound`/`outbound`
 - reference (varchar)
-- collected_by_user_id (bigint, nullable) — trả id, không JOIN users trừ khi cần tên thu ngân
+- collected_by_user_id (bigint, nullable) — trả id. "của tôi" không JOIN users; LFMS = người thu OR HĐ visibleTo
 - created_at, updated_at
 
 Không có organization_id / deleted_at trên bảng này.

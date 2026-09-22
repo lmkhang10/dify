@@ -8,7 +8,7 @@ Columns:
 - organization_id (bigint)
 - documentable_type (varchar) — class name cha (Case, Client, Task, Contract, Dispatch…)
 - documentable_id (bigint)
-- uploaded_by (bigint, FK users)
+- uploaded_by (bigint, FK users) — "của tôi" không JOIN users; LFMS = uploaded_by OR cha morph visibleTo
 - sender_id (bigint) — trùng nghĩa uploaded_by; ưu tiên uploaded_by
 - name (varchar)
 - disk (varchar)

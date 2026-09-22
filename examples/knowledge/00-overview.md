@@ -41,8 +41,8 @@ LFMS tự chèn lọc tenant (`organization_id`) — SQL sinh ra **không** JOIN
 - clients.assigned_to = users.id
 - handbook_articles.category_id = handbook_categories.id
 
-Không JOIN organizations / departments / case_types chỉ để lấy tên — trả id.
+Không JOIN organizations / departments chỉ để lấy tên — trả id. Lọc theo tên loại vụ: JOIN `case_types`.
 
-LIMIT 100 trừ COUNT/SUM/AVG. Không subquery, UNION, WITH, SELECT *.
+LIMIT 100 trừ COUNT/SUM/AVG. Subquery IN/EXISTS được; cấm UNION, WITH, SELECT *.
 
 Follow-up ("khách đó", "còn nợ thì sao") giữ cùng tên/mã lượt trước — xem `followups.md`. Không JOIN organizations.

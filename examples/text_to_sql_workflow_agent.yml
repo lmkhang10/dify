@@ -66,7 +66,12 @@ workflow:
       enabled: false
     speech_to_text:
       enabled: false
-    suggested_questions: []
+    suggested_questions:
+      - Liệt kê vụ tôi là luật sư phụ trách, mã và trạng thái
+      - Công việc đang mở của tôi, hạn và tiến độ
+      - Hợp đồng tôi tạo còn hiệu lực
+      - Khách hàng được giao cho tôi
+      - Công việc quá hạn của tôi
     suggested_questions_after_answer:
       enabled: false
     text_to_speech:
@@ -786,6 +791,9 @@ workflow:
                 4. Giữ ý nghiệp vụ: còn nợ = đợt thu pending + in; doanh thu HĐ = giá
                 trị hợp đồng.
 
+                5. "của tôi", "liên quan tôi", "tôi phụ trách", "LS phụ trách" giữ nguyên
+                — không thay "tôi" bằng tên người, không bịa mã vụ.
+
                 '
             - id: rewrite-user-01
               role: user
@@ -868,8 +876,9 @@ workflow:
             users.status: active|away|inactive\n\"\"\"\n\nFALLBACK = \"\"\"### FALLBACK\
             \ SCHEMA (KB empty) ###\nGlossary: khách=clients (profile_kind client|lead);\
             \ vụ=cases (category litigation|legal_service); HĐ=contracts.payment_amount;\
-            \ đợt thu=payments; việc=tasks + task_assignees\nKHÔNG JOIN organizations/departments/case_types\
-            \ chỉ để lấy tên. Không subquery/UNION/WITH/SELECT *.\nTable: clients —\
+            \ đợt thu=payments; việc=tasks + task_assignees\nKHÔNG JOIN organizations/departments\
+            \ chỉ để lấy tên. Lọc theo tên loại vụ: JOIN case_types. Cấm UNION/WITH/SELECT *. Subquery IN/EXISTS được (LFMS\
+            \ rewrite tenant).\nTable: clients —\
             \ id, organization_id, name, profile_kind, type, status, lead_stage, assigned_to,\
             \ created_by, deleted_at\nTable: cases — id, code, name, client_id, category,\
             \ status, held_at, fee_estimate, billing_method, lead_lawyer_id, deleted_at.\
@@ -965,17 +974,21 @@ workflow:
                 4. Không SELECT password, remember_token, smtp_password, is_super_admin,
                 api_token. Không cột cases.on_hold (boolean đã drop — dùng status).
 
-                5. Không SELECT *. Không subquery, UNION, WITH, EXISTS.
+                5. Không SELECT *. Cấm UNION, WITH. Subquery IN/EXISTS/derived được;
+                LFMS chèn tenant từng SELECT. JOIN phẳng vẫn ưu tiên.
 
                 6. Không truy vấn super admin / tài khoản hệ thống.
 
                 7. Chỉ trả SQL trong ```sql ... ```. Không giải thích.
 
-                8. Tối thiểu bảng: không JOIN organizations / departments / case_types
-                chỉ để lấy tên. Tenant do LFMS chèn. Trả id; tóm tắt sẽ nói thuộc văn
-                phòng bạn.
+                8. Tối thiểu bảng: không JOIN organizations / departments chỉ để lấy
+                tên. Lọc theo TÊN loại vụ: JOIN case_types ON cases.case_type_id =
+                case_types.id AND LIKE tên loại (không đếm cả category litigation).
+                Tenant do LFMS chèn. Trả id; tóm tắt sẽ nói thuộc văn phòng bạn.
 
-                9. Không JOIN users trừ khi câu hỏi cần tên nhân sự.
+                9. Không JOIN users cho "tôi / liên quan tôi / LS phụ trách". LFMS đã
+                lọc Của tôi (gồm lead_lawyer_id). JOIN users khi nhân viên không có
+                module Users → TABLE_DENIED, mất cả vụ của bạn.
 
                 10. Ưu tiên report_daily_* cho tổng hợp. FLOW được SUM; STOCK lấy ngày
                 cuối kỳ, không SUM.
@@ -992,6 +1005,18 @@ workflow:
 
                 14. Tên khách: LIKE phần tên (an khang), không so sánh bằng chuỗi rút
                 gọn. Công nợ: theo công thức trong mục ENUM của schema_docs.
+
+                15. Liệt kê vụ: SELECT cases.code, cases.name, cases.status (và cột
+                cần). Không bịa mã. Mã copy nguyên từ DB (tiền tố org). Không rút
+                thành VV001.
+
+                16. Của tôi / liên quan tôi / tôi phụ trách / LS phụ trách: SELECT từ
+                bảng được hỏi, KHÔNG thêm WHERE user_id / lead_lawyer_id / created_by,
+                KHÔNG JOIN users / case_team. Gateway Mine = luật sư phụ trách OR người
+                tạo OR đội OR khách assigned/created.
+
+                17. Cấm placeholder `:current_user_id` / `:name` / `?`. LFMS tự lọc
+                Của tôi. Không JOIN users/tasks chỉ để diễn tả "tôi".
 
                 '
             - id: 1c37b098-a3c5-4128-aa64-1016a14418ed
@@ -1163,7 +1188,8 @@ workflow:
             ))\n    text = (message or \"\") + \" \" + \" \".join(codes) + \" \" + \"\
             \ \".join(names)\n    kind = \"\"\n    if \"TABLE_DENIED\" in text:\n  \
             \      kind = \"TABLE_DENIED\"\n    elif \"COLUMN_DENIED\" in text:\n  \
-            \      kind = \"COLUMN_DENIED\"\n    retry = \"true\" if kind else \"false\"\
+            \      kind = \"COLUMN_DENIED\"\n    elif \"BINDING_DENIED\" in text:\n\
+            \        kind = \"BINDING_DENIED\"\n    retry = \"true\" if kind else \"false\"\
             \n    return retry, kind, \" \".join(n for n in names if n).strip()\n\n\
             def main(http_status, http_body: str) -> dict:\n    fail = {\n        \"\
             is_ok\": \"false\",\n        \"data_json\": \"[]\",\n        \"row_count\"\
@@ -1315,7 +1341,7 @@ workflow:
               size: 10
           model:
             completion_params:
-              temperature: 0.3
+              temperature: 0
             mode: chat
             name: anthropic claude
             provider: langgenius/bedrock/bedrock
@@ -1328,15 +1354,28 @@ workflow:
                 Schema mặc định: {"answer":"...","chart":null}
 
                 answer: tiếng Việt, bảng markdown được. Không SQL, không tên bảng/cột.
-                Nếu data rỗng, nói rõ không có bản ghi phù hợp.
+                Chỉ dùng số, mã và tên CÓ TRONG JSON data. Cấm bịa dòng. Cấm thêm
+                vụ/khách không có trong JSON. Liệt kê: mỗi dòng JSON một hàng;
+                copy nguyên field code (ví dụ D2-VV-049). Cấm rút thành VV001,
+                VV-001, hay bịa D2-VV-001. Không có key code trong JSON thì không
+                bịa mã. Cấm lấy số từ ví dụ prompt.
+                Nếu Số hàng = 0 hoặc data = [] HOẶC câu hỏi thiếu điều kiện (không rõ
+                đếm/liệt kê, thiếu loại/trạng thái/mã khi user cần lọc): answer gồm
+                (1) một câu lý do thật — 0 hàng trong phạm vi Của tôi sau lọc SQL, hoặc
+                câu hỏi chưa đủ rõ; (2) đúng 5 nút Dify, mỗi gợi ý một thẻ (click gửi
+                tin, không đánh số markdown, không href):
+                <button data-message="câu hỏi đầy đủ tiếng Việt" data-variant="secondary">nhãn ngắn</button>
+                data-message = đúng câu user gửi lại, không SQL, không organization_id.
+                chart=null. Không bịa danh sách vụ để cho có.
+                Câu COUNT/SUM khi JSON có số: đọc đúng số đó, không bịa.
 
                 chart chỉ khi câu hỏi liên quan biểu đồ / so sánh trực quan / tỉ lệ /
-                xếp hạng (biểu đồ, pie, bar, top N, tỷ trọng) VÀ có ít nhất 2 điểm số.
-                Không vẽ khi tra cứu một bản ghi, danh sách chữ, câu hỏi có/không.
+                xếp hạng (biểu đồ, pie, bar, top N, tỷ trọng) VÀ có ít nhất 2 điểm số
+                trong JSON. Không vẽ khi tra cứu một bản ghi, danh sách chữ, câu hỏi có/không.
 
-                Khi vẽ, values là number (không string):
+                Khi vẽ, values copy nguyên số từ JSON (không string, không bịa):
 
-                {"answer":"...","chart":{"type":"bar","title":"Công nợ theo khách hàng","labels":["A","B"],"values":[10,20]}}
+                {"answer":"...","chart":{"type":"bar","title":"Công nợ theo khách hàng","labels":["A","B"],"values":[3.5,8]}}
 
                 type: bar hoặc line hoặc pie. Workflow sẽ gán labels/values vào ECharts.
 
@@ -1473,7 +1512,10 @@ workflow:
             COLUMN_DENIED\":\n        label = name or \"một trường\"\n        user =\
             \ (\n            \"Vai trò của bạn không đọc được trường \"\n          \
             \  + label\n            + \". Hãy hỏi phiên bản không gồm thông tin nhạy\
-            \ cảm.\"\n        )\n    else:\n        user = msg if msg else \"Không thực\
+            \ cảm.\"\n        )\n    elif kind == \"BINDING_DENIED\":\n        user =\
+            \ (\n            \"Câu hỏi của bạn đã hiểu. Hãy hỏi lại ngắn: liệt kê vụ\
+            \ liên quan tôi (mã, tên, trạng thái) — không cần nêu id người dùng.\"\n\
+            \        )\n    else:\n        user = msg if msg else \"Không thực\
             \ hiện được truy vấn với quyền hiện tại.\"\n    if \"SELECT\" in user.upper()\
             \ or \"```\" in user:\n        user = \"Không thực hiện được truy vấn với\
             \ quyền hiện tại. Hãy diễn đạt lại câu hỏi.\"\n    return {\"user_message\"\
@@ -1546,10 +1588,13 @@ workflow:
 
 
                 Bỏ mọi FROM/JOIN bảng bị TABLE_DENIED. Bỏ cột bị COLUMN_DENIED.
+                Bỏ mọi `:current_user_id` / placeholder. Không JOIN users/tasks để diễn
+                tả "tôi" — LFMS tự lọc Của tôi (gồm luật sư phụ trách).
 
                 Không JOIN organizations/departments/case_types chỉ để lấy tên.
 
-                Không subquery/UNION/WITH/SELECT *. Chỉ SELECT. Soft-delete như schema.
+                Cấm UNION/WITH/SELECT *. Subquery IN/EXISTS được. Chỉ SELECT. Soft-delete
+                như schema.
 
                 Chỉ trả ```sql ... ```. Không giải thích. '
             - id: 8c11e0a1-4f2a-4b9c-9d01-repair-sql-02
@@ -1727,7 +1772,8 @@ workflow:
             ))\n    text = (message or \"\") + \" \" + \" \".join(codes) + \" \" + \"\
             \ \".join(names)\n    kind = \"\"\n    if \"TABLE_DENIED\" in text:\n  \
             \      kind = \"TABLE_DENIED\"\n    elif \"COLUMN_DENIED\" in text:\n  \
-            \      kind = \"COLUMN_DENIED\"\n    retry = \"true\" if kind else \"false\"\
+            \      kind = \"COLUMN_DENIED\"\n    elif \"BINDING_DENIED\" in text:\n\
+            \        kind = \"BINDING_DENIED\"\n    retry = \"true\" if kind else \"false\"\
             \n    return retry, kind, \" \".join(n for n in names if n).strip()\n\n\
             def main(http_status, http_body: str) -> dict:\n    fail = {\n        \"\
             is_ok\": \"false\",\n        \"data_json\": \"[]\",\n        \"row_count\"\
@@ -1866,7 +1912,7 @@ workflow:
               size: 10
           model:
             completion_params:
-              temperature: 0.3
+              temperature: 0
             mode: chat
             name: anthropic claude
             provider: langgenius/bedrock/bedrock
@@ -1879,15 +1925,28 @@ workflow:
                 Schema mặc định: {"answer":"...","chart":null}
 
                 answer: tiếng Việt, bảng markdown được. Không SQL, không tên bảng/cột.
-                Nếu data rỗng, nói rõ không có bản ghi phù hợp.
+                Chỉ dùng số, mã và tên CÓ TRONG JSON data. Cấm bịa dòng. Cấm thêm
+                vụ/khách không có trong JSON. Liệt kê: mỗi dòng JSON một hàng;
+                copy nguyên field code (ví dụ D2-VV-049). Cấm rút thành VV001,
+                VV-001, hay bịa D2-VV-001. Không có key code trong JSON thì không
+                bịa mã. Cấm lấy số từ ví dụ prompt.
+                Nếu Số hàng = 0 hoặc data = [] HOẶC câu hỏi thiếu điều kiện (không rõ
+                đếm/liệt kê, thiếu loại/trạng thái/mã khi user cần lọc): answer gồm
+                (1) một câu lý do thật — 0 hàng trong phạm vi Của tôi sau lọc SQL, hoặc
+                câu hỏi chưa đủ rõ; (2) đúng 5 nút Dify, mỗi gợi ý một thẻ (click gửi
+                tin, không đánh số markdown, không href):
+                <button data-message="câu hỏi đầy đủ tiếng Việt" data-variant="secondary">nhãn ngắn</button>
+                data-message = đúng câu user gửi lại, không SQL, không organization_id.
+                chart=null. Không bịa danh sách vụ để cho có.
+                Câu COUNT/SUM khi JSON có số: đọc đúng số đó, không bịa.
 
                 chart chỉ khi câu hỏi liên quan biểu đồ / so sánh trực quan / tỉ lệ /
-                xếp hạng (biểu đồ, pie, bar, top N, tỷ trọng) VÀ có ít nhất 2 điểm số.
-                Không vẽ khi tra cứu một bản ghi, danh sách chữ, câu hỏi có/không.
+                xếp hạng (biểu đồ, pie, bar, top N, tỷ trọng) VÀ có ít nhất 2 điểm số
+                trong JSON. Không vẽ khi tra cứu một bản ghi, danh sách chữ, câu hỏi có/không.
 
-                Khi vẽ, values là number (không string):
+                Khi vẽ, values copy nguyên số từ JSON (không string, không bịa):
 
-                {"answer":"...","chart":{"type":"bar","title":"Công nợ theo khách hàng","labels":["A","B"],"values":[10,20]}}
+                {"answer":"...","chart":{"type":"bar","title":"Công nợ theo khách hàng","labels":["A","B"],"values":[3.5,8]}}
 
                 type: bar hoặc line hoặc pie. Workflow sẽ gán labels/values vào ECharts.
 
@@ -2002,7 +2061,10 @@ workflow:
             COLUMN_DENIED\":\n        label = name or \"một trường\"\n        user =\
             \ (\n            \"Vai trò của bạn không đọc được trường \"\n          \
             \  + label\n            + \". Hãy hỏi phiên bản không gồm thông tin nhạy\
-            \ cảm.\"\n        )\n    else:\n        user = msg if msg else \"Không thực\
+            \ cảm.\"\n        )\n    elif kind == \"BINDING_DENIED\":\n        user =\
+            \ (\n            \"Câu hỏi của bạn đã hiểu. Hãy hỏi lại ngắn: liệt kê vụ\
+            \ liên quan tôi (mã, tên, trạng thái) — không cần nêu id người dùng.\"\n\
+            \        )\n    else:\n        user = msg if msg else \"Không thực\
             \ hiện được truy vấn với quyền hiện tại.\"\n    if \"SELECT\" in user.upper()\
             \ or \"```\" in user:\n        user = \"Không thực hiện được truy vấn với\
             \ quyền hiện tại. Hãy diễn đạt lại câu hỏi.\"\n    return {\"user_message\"\

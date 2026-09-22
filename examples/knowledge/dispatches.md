@@ -17,7 +17,7 @@ Columns:
 - status (varchar, enum `DispatchStatus` — tập giá trị khác nhau theo `direction`):
   - `direction = 'incoming'`: received | processing | replied | completed | canceled
   - `direction = 'outgoing'`: draft | pending_sign | signed | sent | acknowledged
-- assignee_id, created_by, signer_id, signed_by, sent_by (bigint, nullable)
+- assignee_id, created_by, signer_id, signed_by, sent_by (bigint, nullable) — "của tôi" không JOIN users; LFMS = assignee OR signer OR created_by OR vụ visibleTo
 - signed_at, sent_at, completed_at (timestamp)
 - sent_via (varchar)
 - rejection_reason, completion_reason (text)

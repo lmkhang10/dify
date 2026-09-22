@@ -5,13 +5,17 @@ LFMS từ chối **cả câu** nếu một bảng trong FROM/JOIN không thuộc
 ## Tối thiểu bảng
 
 1. Chỉ FROM/JOIN bảng cần cột. Tên văn phòng: ghi trong tóm tắt "thuộc văn phòng bạn" — **không** JOIN `organizations`.
-2. Không JOIN `departments` / `case_types` chỉ để lấy tên. Trả `department_id` / `case_type_id`.
-3. Không JOIN `users` nếu chỉ cần `lead_lawyer_id` / `assigned_to` / `created_by` (trả id). JOIN users chỉ khi hỏi tên nhân sự **và** câu hỏi về nhân sự.
-4. Tenant filter do LFMS tự chèn. Không viết `WHERE organization_id = …`. Không JOIN organizations để lọc tenant.
+2. Không JOIN `departments` chỉ để lấy tên. Trả `department_id`. Lọc **theo tên loại vụ** thì JOIN `case_types` (`cases.case_type_id`) + `LOWER(case_types.name) LIKE …` — không đếm hết `category = 'litigation'`.
+3. **Cấm JOIN `users` cho "tôi / liên quan tôi / LS phụ trách / tôi phụ trách".** LFMS đã lọc Của tôi, **gồm `cases.lead_lawyer_id`**. Nhân viên thường không có module Users — JOIN `users` → `TABLE_DENIED`, mất cả vụ bạn phụ trách. Trả `lead_lawyer_id`. JOIN users chỉ khi hỏi **tên** nhân sự khác và module Users được phép.
+4. Tenant filter và Của tôi do LFMS tự chèn. Không viết `WHERE organization_id = …`. **Cấm** `:current_user_id` / mọi placeholder PDO — PDO sẽ vỡ (`HY093`) và trả "Không chạy được truy vấn."
 5. Ưu tiên `report_daily_*` cho câu tổng hợp (doanh thu kỳ, backlog vụ, pipeline lead, giờ nhân sự). Không SUM stock.
-6. Cấm subquery, UNION, WITH, EXISTS do LLM viết, SELECT *, INSERT/UPDATE/DELETE.
+6. Subquery `IN` / `EXISTS` / derived table được LFMS rewrite tenant từng SELECT. Cấm UNION, WITH, SELECT *, INSERT/UPDATE/DELETE. JOIN phẳng vẫn ưu tiên.
 7. Soft-delete: `deleted_at IS NULL` trên clients, cases, contracts, tasks, official_dispatches, documents, handbook_articles, organizations (nếu được phép).
 8. LIMIT 100 trừ COUNT/SUM/AVG.
+
+## Của tôi / liên quan tôi
+
+Không viết `WHERE lead_lawyer_id = …` hay JOIN `users`/`case_team`. LFMS Mine = luật sư phụ trách OR người tạo OR đội OR khách (assigned_to/created_by). SELECT `code, name, status` (+ loại nếu JOIN case_types).
 
 ## Tên khách / công ty
 

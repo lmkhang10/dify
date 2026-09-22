@@ -17,7 +17,7 @@ Columns:
 - status (enum: active, inactive, potential, archived)
 - lead_stage (enum: new, consulting, proposal, negotiating, won, lost)
 - lost_reason_code (varchar, nullable)
-- assigned_to (bigint, FK users.id) — trả id; JOIN users chỉ khi cần tên và Users được phép
+- assigned_to (bigint, FK users.id) — "của tôi" **không** JOIN users; LFMS Mine = assigned_to OR created_by. Trả id.
 - created_by (bigint, FK users.id)
 - created_at, updated_at
 - deleted_at — luôn `deleted_at IS NULL`
@@ -30,3 +30,5 @@ Sample:
 
 - Khách active: SELECT id, code, name, type, status FROM clients WHERE profile_kind = 'client' AND status = 'active' AND deleted_at IS NULL LIMIT 100
 - Lead negotiating: SELECT id, name, lead_stage FROM clients WHERE profile_kind = 'lead' AND lead_stage = 'negotiating' AND deleted_at IS NULL LIMIT 100
+
+Của tôi / liên quan tôi: `SELECT id, code, name FROM clients WHERE profile_kind = 'client' AND deleted_at IS NULL` — không JOIN users, không `assigned_to = <số>`.

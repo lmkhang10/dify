@@ -25,7 +25,7 @@ Columns:
 - is_completed (tinyint)
 - completed_at (timestamp)
 - referrer_name (varchar) — PII
-- created_by (bigint)
+- created_by (bigint) — "của tôi": LFMS = created_by OR vụ visibleTo; không JOIN users, không WHERE created_by = số
 - created_at, updated_at
 - deleted_at — luôn `deleted_at IS NULL`
 
