@@ -18,8 +18,8 @@ app:
 
     5. Overview → tắt Show workflow steps → Publish WebApp
 
-    6. Biểu đồ: LLM tóm tắt trả JSON {answer, chart}. Node Parse Chart Payload
-    map sang biến ECharts (title/data/labels). Tool pie/line chỉ chạy khi chart != null.
+    6. Biểu đồ: LLM tóm tắt trả JSON {answer, chart}. Node Parse Chart Payload map
+    sang biến ECharts (title/data/labels). Tool pie/line chỉ chạy khi chart != null.
 
 
     Không cần plugin database / credential MySQL trên Dify.
@@ -57,23 +57,41 @@ workflow:
       value_type: secret
   features:
     file_upload:
+      allowed_file_extensions:
+        - .JPG
+        - .JPEG
+        - .PNG
+        - .GIF
+        - .WEBP
+        - .SVG
+      allowed_file_types:
+        - image
+      allowed_file_upload_methods:
+        - local_file
+        - remote_url
       enabled: false
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+          - local_file
+          - remote_url
+      number_limits: 3
     opening_statement: Xin chào, tôi là AI Chatbot hỗ trợ bạn.
     retriever_resource:
-      enabled: true
-    show_workflow_steps: false
+      enabled: false
     sensitive_word_avoidance:
       enabled: false
     speech_to_text:
       enabled: false
     suggested_questions:
-      - Liệt kê vụ tôi là luật sư phụ trách, mã và trạng thái
-      - Công việc đang mở của tôi, hạn và tiến độ
-      - Hợp đồng tôi tạo còn hiệu lực
-      - Khách hàng được giao cho tôi
-      - Công việc quá hạn của tôi
+      - '{{starter_1}}'
+      - '{{starter_2}}'
+      - '{{starter_3}}'
+      - '{{starter_4}}'
+      - '{{starter_5}}'
     suggested_questions_after_answer:
-      enabled: false
+      enabled: true
     text_to_speech:
       enabled: false
       language: ''
@@ -564,6 +582,56 @@ workflow:
               required: false
               type: paragraph
               variable: lfms_api_base
+            - default: ' '
+              hide: true
+              hint: ''
+              label: starter_1
+              max_length: 500
+              options: []
+              placeholder: ''
+              required: false
+              type: paragraph
+              variable: starter_1
+            - default: ' '
+              hide: true
+              hint: ''
+              label: starter_2
+              max_length: 500
+              options: []
+              placeholder: ''
+              required: false
+              type: paragraph
+              variable: starter_2
+            - default: ' '
+              hide: true
+              hint: ''
+              label: starter_3
+              max_length: 500
+              options: []
+              placeholder: ''
+              required: false
+              type: paragraph
+              variable: starter_3
+            - default: ' '
+              hide: true
+              hint: ''
+              label: starter_4
+              max_length: 500
+              options: []
+              placeholder: ''
+              required: false
+              type: paragraph
+              variable: starter_4
+            - default: ' '
+              hide: true
+              hint: ''
+              label: starter_5
+              max_length: 500
+              options: []
+              placeholder: ''
+              required: false
+              type: paragraph
+              variable: starter_5
         height: 179
         id: start_node
         position:
@@ -704,14 +772,9 @@ workflow:
               id: 'true'
               logical_operator: and
           desc: Chỉ tiếp tục khi có lfms_token + lfms_api_base hợp lệ
-          selected: false
+          selected: true
           title: Cổng Embed LFMS
           type: if-else
-          _targetBranches:
-            - id: 'true'
-              name: IF
-            - id: 'false'
-              name: ELSE
         height: 192
         id: embed_guard
         position:
@@ -720,7 +783,7 @@ workflow:
         positionAbsolute:
           x: 684
           y: 105.11190476190467
-        selected: false
+        selected: true
         sourcePosition: right
         targetPosition: left
         type: custom
@@ -877,9 +940,9 @@ workflow:
             \ SCHEMA (KB empty) ###\nGlossary: khách=clients (profile_kind client|lead);\
             \ vụ=cases (category litigation|legal_service); HĐ=contracts.payment_amount;\
             \ đợt thu=payments; việc=tasks + task_assignees\nKHÔNG JOIN organizations/departments\
-            \ chỉ để lấy tên. Lọc theo tên loại vụ: JOIN case_types. Cấm UNION/WITH/SELECT *. Subquery IN/EXISTS được (LFMS\
-            \ rewrite tenant).\nTable: clients —\
-            \ id, organization_id, name, profile_kind, type, status, lead_stage, assigned_to,\
+            \ chỉ để lấy tên. Lọc theo tên loại vụ: JOIN case_types. Cấm UNION/WITH/SELECT\
+            \ *. Subquery IN/EXISTS được (LFMS rewrite tenant).\nTable: clients — id,\
+            \ organization_id, name, profile_kind, type, status, lead_stage, assigned_to,\
             \ created_by, deleted_at\nTable: cases — id, code, name, client_id, category,\
             \ status, held_at, fee_estimate, billing_method, lead_lawyer_id, deleted_at.\
             \ Cấm cột on_hold boolean.\nTable: contracts — id, name, type, status, template_id,\
@@ -974,21 +1037,21 @@ workflow:
                 4. Không SELECT password, remember_token, smtp_password, is_super_admin,
                 api_token. Không cột cases.on_hold (boolean đã drop — dùng status).
 
-                5. Không SELECT *. Cấm UNION, WITH. Subquery IN/EXISTS/derived được;
-                LFMS chèn tenant từng SELECT. JOIN phẳng vẫn ưu tiên.
+                5. Không SELECT *. Cấm UNION, WITH. Subquery IN/EXISTS/derived được; LFMS
+                chèn tenant từng SELECT. JOIN phẳng vẫn ưu tiên.
 
                 6. Không truy vấn super admin / tài khoản hệ thống.
 
                 7. Chỉ trả SQL trong ```sql ... ```. Không giải thích.
 
-                8. Tối thiểu bảng: không JOIN organizations / departments chỉ để lấy
-                tên. Lọc theo TÊN loại vụ: JOIN case_types ON cases.case_type_id =
-                case_types.id AND LIKE tên loại (không đếm cả category litigation).
-                Tenant do LFMS chèn. Trả id; tóm tắt sẽ nói thuộc văn phòng bạn.
+                8. Tối thiểu bảng: không JOIN organizations / departments chỉ để lấy tên.
+                Lọc theo TÊN loại vụ: JOIN case_types ON cases.case_type_id = case_types.id
+                AND LIKE tên loại (không đếm cả category litigation). Tenant do LFMS chèn.
+                Trả id; tóm tắt sẽ nói thuộc văn phòng bạn.
 
                 9. Không JOIN users cho "tôi / liên quan tôi / LS phụ trách". LFMS đã
-                lọc Của tôi (gồm lead_lawyer_id). JOIN users khi nhân viên không có
-                module Users → TABLE_DENIED, mất cả vụ của bạn.
+                lọc Của tôi (gồm lead_lawyer_id). JOIN users khi nhân viên không có module
+                Users → TABLE_DENIED, mất cả vụ của bạn.
 
                 10. Ưu tiên report_daily_* cho tổng hợp. FLOW được SUM; STOCK lấy ngày
                 cuối kỳ, không SUM.
@@ -1006,17 +1069,16 @@ workflow:
                 14. Tên khách: LIKE phần tên (an khang), không so sánh bằng chuỗi rút
                 gọn. Công nợ: theo công thức trong mục ENUM của schema_docs.
 
-                15. Liệt kê vụ: SELECT cases.code, cases.name, cases.status (và cột
-                cần). Không bịa mã. Mã copy nguyên từ DB (tiền tố org). Không rút
-                thành VV001.
+                15. Liệt kê vụ: SELECT cases.code, cases.name, cases.status (và cột cần).
+                Không bịa mã. Mã copy nguyên từ DB (tiền tố org). Không rút thành VV001.
 
                 16. Của tôi / liên quan tôi / tôi phụ trách / LS phụ trách: SELECT từ
                 bảng được hỏi, KHÔNG thêm WHERE user_id / lead_lawyer_id / created_by,
                 KHÔNG JOIN users / case_team. Gateway Mine = luật sư phụ trách OR người
                 tạo OR đội OR khách assigned/created.
 
-                17. Cấm placeholder `:current_user_id` / `:name` / `?`. LFMS tự lọc
-                Của tôi. Không JOIN users/tasks chỉ để diễn tả "tôi".
+                17. Cấm placeholder `:current_user_id` / `:name` / `?`. LFMS tự lọc Của
+                tôi. Không JOIN users/tasks chỉ để diễn tả "tôi".
 
                 '
             - id: 1c37b098-a3c5-4128-aa64-1016a14418ed
@@ -1024,8 +1086,7 @@ workflow:
               text: 'Câu hỏi độc lập (viết SQL theo câu này): {{#llm_rewrite_query.text#}}
 
 
-                Câu gốc: {{#sys.query#}}
-                '
+                Câu gốc: {{#sys.query#}} '
           selected: false
           structured_output:
             enabled: false
@@ -1059,19 +1120,20 @@ workflow:
             n{LFMS_EXECUTE_PATH}\\n{body_hash}\"\n    return hmac.new(\n        secret.encode(\"\
             utf-8\"),\n        signing_string.encode(\"utf-8\"),\n        hashlib.sha256,\n\
             \    ).hexdigest()\n\ndef main(\n    llm_output: str,\n    lfms_token: str,\n\
-            \    user_query: str,\n    hmac_secret: str,\n    conversation_id: str,\n    dify_user_id: str,\n    conversation_title: str,\n) -> dict:\n    text = (llm_output\
-            \ or \"\").strip()\n    match = re.search(r\"```(?:sql)?\\s*(.*?)\\s*```\"\
-            , text, re.DOTALL | re.IGNORECASE)\n    clean_sql = match.group(1).strip().rstrip(\"\
+            \    user_query: str,\n    hmac_secret: str,\n    conversation_id: str,\n\
+            \    dify_user_id: str,\n    conversation_title: str,\n) -> dict:\n    text\
+            \ = (llm_output or \"\").strip()\n    match = re.search(r\"```(?:sql)?\\\
+            s*(.*?)\\s*```\", text, re.DOTALL | re.IGNORECASE)\n    clean_sql = match.group(1).strip().rstrip(\"\
             ;\") if match else text.rstrip(\";\").strip()\n\n    payload = {\n     \
             \   \"embed_token\": (lfms_token or \"\").strip(),\n        \"sql\": clean_sql,\n\
             \        \"natural_language_query\": user_query or \"\",\n        \"request_id\"\
             : str(uuid.uuid4()),\n        \"context\": {\n            \"source\": \"\
             dify\",\n            \"app\": \"text_to_sql_chatflow\",\n            \"\
-            dify_conversation_id\": (conversation_id or \"\").strip(),\n            \"\
-            dify_user_id\": (dify_user_id or \"\").strip(),\n            \"conversation_title\"\
-            : (conversation_title or \"\").strip(),\n        },\n  \
-            \  }\n    request_json = json.dumps(payload, ensure_ascii=False, separators=(\"\
-            ,\", \":\"))\n    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
+            dify_conversation_id\": (conversation_id or \"\").strip(),\n           \
+            \ \"dify_user_id\": (dify_user_id or \"\").strip(),\n            \"conversation_title\"\
+            : (conversation_title or \"\").strip(),\n        },\n    }\n    request_json\
+            \ = json.dumps(payload, ensure_ascii=False, separators=(\",\", \":\"))\n\
+            \    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
             \    secret = (hmac_secret or \"\").strip()\n    if not secret:\n      \
             \  return {\n            \"request_json\": request_json,\n            \"\
             timestamp\": timestamp,\n            \"nonce\": nonce,\n            \"signature\"\
@@ -1207,10 +1269,10 @@ workflow:
             \ \".join(names)\n    kind = \"\"\n    if \"TABLE_DENIED\" in text:\n  \
             \      kind = \"TABLE_DENIED\"\n    elif \"COLUMN_DENIED\" in text:\n  \
             \      kind = \"COLUMN_DENIED\"\n    elif \"BINDING_DENIED\" in text:\n\
-            \        kind = \"BINDING_DENIED\"\n    retry = \"true\" if kind else \"false\"\
-            \n    return retry, kind, \" \".join(n for n in names if n).strip()\n\n\
-            def main(http_status, http_body: str) -> dict:\n    fail = {\n        \"\
-            is_ok\": \"false\",\n        \"data_json\": \"[]\",\n        \"row_count\"\
+            \        kind = \"BINDING_DENIED\"\n    retry = \"true\" if kind else \"\
+            false\"\n    return retry, kind, \" \".join(n for n in names if n).strip()\n\
+            \ndef main(http_status, http_body: str) -> dict:\n    fail = {\n       \
+            \ \"is_ok\": \"false\",\n        \"data_json\": \"[]\",\n        \"row_count\"\
             : \"0\",\n        \"error_message\": \"Không kết nối được LFMS SQL Gateway\"\
             ,\n        \"can_retry\": \"false\",\n        \"denial_kind\": \"\",\n \
             \       \"denied_name\": \"\",\n    }\n    try:\n        status = int(http_status\
@@ -1323,13 +1385,6 @@ workflow:
           selected: false
           title: Phân Luồng Kết Quả
           type: if-else
-          _targetBranches:
-            - id: 'true'
-              name: IF
-            - id: retry
-              name: ELIF 1
-            - id: 'false'
-              name: ELSE
         height: 124
         id: result_router
         position:
@@ -1372,20 +1427,19 @@ workflow:
                 Schema mặc định: {"answer":"...","chart":null}
 
                 answer: tiếng Việt, bảng markdown được. Không SQL, không tên bảng/cột.
-                Chỉ dùng số, mã và tên CÓ TRONG JSON data. Cấm bịa dòng. Cấm thêm
-                vụ/khách không có trong JSON. Liệt kê: mỗi dòng JSON một hàng;
-                copy nguyên field code (ví dụ D2-VV-049). Cấm rút thành VV001,
-                VV-001, hay bịa D2-VV-001. Không có key code trong JSON thì không
-                bịa mã. Cấm lấy số từ ví dụ prompt.
+                Chỉ dùng số, mã và tên CÓ TRONG JSON data. Cấm bịa dòng. Cấm thêm vụ/khách
+                không có trong JSON. Liệt kê: mỗi dòng JSON một hàng; copy nguyên field
+                code (ví dụ D2-VV-049). Cấm rút thành VV001, VV-001, hay bịa D2-VV-001.
+                Không có key code trong JSON thì không bịa mã. Cấm lấy số từ ví dụ prompt.
                 Nếu Số hàng = 0 hoặc data = [] HOẶC câu hỏi thiếu điều kiện (không rõ
-                đếm/liệt kê, thiếu loại/trạng thái/mã khi user cần lọc): answer gồm
-                (1) một câu lý do thật — 0 hàng trong phạm vi Của tôi sau lọc SQL, hoặc
-                câu hỏi chưa đủ rõ; (2) đúng 5 nút Dify, mỗi gợi ý một thẻ (click gửi
-                tin, không đánh số markdown, không href):
-                <button data-message="câu hỏi đầy đủ tiếng Việt" data-variant="secondary">nhãn ngắn</button>
-                data-message = đúng câu user gửi lại, không SQL, không organization_id.
-                chart=null. Không bịa danh sách vụ để cho có.
-                Câu COUNT/SUM khi JSON có số: đọc đúng số đó, không bịa.
+                đếm/liệt kê, thiếu loại/trạng thái/mã khi user cần lọc): answer gồm (1)
+                một câu lý do thật — 0 hàng trong phạm vi Của tôi sau lọc SQL, hoặc câu
+                hỏi chưa đủ rõ; (2) đúng 5 nút Dify, mỗi gợi ý một thẻ (click gửi tin,
+                không đánh số markdown, không href): <button data-message="câu hỏi đầy
+                đủ tiếng Việt" data-variant="secondary">nhãn ngắn</button> data-message
+                = đúng câu user gửi lại, không SQL, không organization_id. chart=null.
+                Không bịa danh sách vụ để cho có. Câu COUNT/SUM khi JSON có số: đọc đúng
+                số đó, không bịa.
 
                 chart chỉ khi câu hỏi liên quan biểu đồ / so sánh trực quan / tỉ lệ /
                 xếp hạng (biểu đồ, pie, bar, top N, tỷ trọng) VÀ có ít nhất 2 điểm số
@@ -1457,7 +1511,10 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          answer: "{{#parse_chart_payload.user_message#}}\n\n{{#echarts_line.text#}}"
+          answer: '{{#parse_chart_payload.user_message#}}
+
+
+            {{#echarts_line.text#}}'
           desc: Bảng + markdown echarts từ plugin Line
           selected: false
           title: Trả lời + Line
@@ -1478,7 +1535,10 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          answer: "{{#parse_chart_payload.user_message#}}\n\n{{#echarts_pie.text#}}"
+          answer: '{{#parse_chart_payload.user_message#}}
+
+
+            {{#echarts_pie.text#}}'
           desc: Bảng + markdown echarts từ plugin Pie
           selected: false
           title: Trả lời + Pie
@@ -1530,11 +1590,11 @@ workflow:
             COLUMN_DENIED\":\n        label = name or \"một trường\"\n        user =\
             \ (\n            \"Vai trò của bạn không đọc được trường \"\n          \
             \  + label\n            + \". Hãy hỏi phiên bản không gồm thông tin nhạy\
-            \ cảm.\"\n        )\n    elif kind == \"BINDING_DENIED\":\n        user =\
-            \ (\n            \"Câu hỏi của bạn đã hiểu. Hãy hỏi lại ngắn: liệt kê vụ\
-            \ liên quan tôi (mã, tên, trạng thái) — không cần nêu id người dùng.\"\n\
-            \        )\n    else:\n        user = msg if msg else \"Không thực\
-            \ hiện được truy vấn với quyền hiện tại.\"\n    if \"SELECT\" in user.upper()\
+            \ cảm.\"\n        )\n    elif kind == \"BINDING_DENIED\":\n        user\
+            \ = (\n            \"Câu hỏi của bạn đã hiểu. Hãy hỏi lại ngắn: liệt kê\
+            \ vụ liên quan tôi (mã, tên, trạng thái) — không cần nêu id người dùng.\"\
+            \n        )\n    else:\n        user = msg if msg else \"Không thực hiện\
+            \ được truy vấn với quyền hiện tại.\"\n    if \"SELECT\" in user.upper()\
             \ or \"```\" in user:\n        user = \"Không thực hiện được truy vấn với\
             \ quyền hiện tại. Hãy diễn đạt lại câu hỏi.\"\n    return {\"user_message\"\
             : user}\n"
@@ -1605,9 +1665,9 @@ workflow:
                 {{#format_schema.schema_docs#}}
 
 
-                Bỏ mọi FROM/JOIN bảng bị TABLE_DENIED. Bỏ cột bị COLUMN_DENIED.
-                Bỏ mọi `:current_user_id` / placeholder. Không JOIN users/tasks để diễn
-                tả "tôi" — LFMS tự lọc Của tôi (gồm luật sư phụ trách).
+                Bỏ mọi FROM/JOIN bảng bị TABLE_DENIED. Bỏ cột bị COLUMN_DENIED. Bỏ mọi
+                `:current_user_id` / placeholder. Không JOIN users/tasks để diễn tả "tôi"
+                — LFMS tự lọc Của tôi (gồm luật sư phụ trách).
 
                 Không JOIN organizations/departments/case_types chỉ để lấy tên.
 
@@ -1661,19 +1721,20 @@ workflow:
             n{LFMS_EXECUTE_PATH}\\n{body_hash}\"\n    return hmac.new(\n        secret.encode(\"\
             utf-8\"),\n        signing_string.encode(\"utf-8\"),\n        hashlib.sha256,\n\
             \    ).hexdigest()\n\ndef main(\n    llm_output: str,\n    lfms_token: str,\n\
-            \    user_query: str,\n    hmac_secret: str,\n    conversation_id: str,\n    dify_user_id: str,\n    conversation_title: str,\n) -> dict:\n    text = (llm_output\
-            \ or \"\").strip()\n    match = re.search(r\"```(?:sql)?\\s*(.*?)\\s*```\"\
-            , text, re.DOTALL | re.IGNORECASE)\n    clean_sql = match.group(1).strip().rstrip(\"\
+            \    user_query: str,\n    hmac_secret: str,\n    conversation_id: str,\n\
+            \    dify_user_id: str,\n    conversation_title: str,\n) -> dict:\n    text\
+            \ = (llm_output or \"\").strip()\n    match = re.search(r\"```(?:sql)?\\\
+            s*(.*?)\\s*```\", text, re.DOTALL | re.IGNORECASE)\n    clean_sql = match.group(1).strip().rstrip(\"\
             ;\") if match else text.rstrip(\";\").strip()\n\n    payload = {\n     \
             \   \"embed_token\": (lfms_token or \"\").strip(),\n        \"sql\": clean_sql,\n\
             \        \"natural_language_query\": user_query or \"\",\n        \"request_id\"\
             : str(uuid.uuid4()),\n        \"context\": {\n            \"source\": \"\
             dify\",\n            \"app\": \"text_to_sql_chatflow\",\n            \"\
-            dify_conversation_id\": (conversation_id or \"\").strip(),\n            \"\
-            dify_user_id\": (dify_user_id or \"\").strip(),\n            \"conversation_title\"\
-            : (conversation_title or \"\").strip(),\n        },\n  \
-            \  }\n    request_json = json.dumps(payload, ensure_ascii=False, separators=(\"\
-            ,\", \":\"))\n    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
+            dify_conversation_id\": (conversation_id or \"\").strip(),\n           \
+            \ \"dify_user_id\": (dify_user_id or \"\").strip(),\n            \"conversation_title\"\
+            : (conversation_title or \"\").strip(),\n        },\n    }\n    request_json\
+            \ = json.dumps(payload, ensure_ascii=False, separators=(\",\", \":\"))\n\
+            \    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
             \    secret = (hmac_secret or \"\").strip()\n    if not secret:\n      \
             \  return {\n            \"request_json\": request_json,\n            \"\
             timestamp\": timestamp,\n            \"nonce\": nonce,\n            \"signature\"\
@@ -1809,10 +1870,10 @@ workflow:
             \ \".join(names)\n    kind = \"\"\n    if \"TABLE_DENIED\" in text:\n  \
             \      kind = \"TABLE_DENIED\"\n    elif \"COLUMN_DENIED\" in text:\n  \
             \      kind = \"COLUMN_DENIED\"\n    elif \"BINDING_DENIED\" in text:\n\
-            \        kind = \"BINDING_DENIED\"\n    retry = \"true\" if kind else \"false\"\
-            \n    return retry, kind, \" \".join(n for n in names if n).strip()\n\n\
-            def main(http_status, http_body: str) -> dict:\n    fail = {\n        \"\
-            is_ok\": \"false\",\n        \"data_json\": \"[]\",\n        \"row_count\"\
+            \        kind = \"BINDING_DENIED\"\n    retry = \"true\" if kind else \"\
+            false\"\n    return retry, kind, \" \".join(n for n in names if n).strip()\n\
+            \ndef main(http_status, http_body: str) -> dict:\n    fail = {\n       \
+            \ \"is_ok\": \"false\",\n        \"data_json\": \"[]\",\n        \"row_count\"\
             : \"0\",\n        \"error_message\": \"Không kết nối được LFMS SQL Gateway\"\
             ,\n        \"can_retry\": \"false\",\n        \"denial_kind\": \"\",\n \
             \       \"denied_name\": \"\",\n    }\n    try:\n        status = int(http_status\
@@ -1914,11 +1975,6 @@ workflow:
           selected: false
           title: Phân Luồng Kết Quả (retry)
           type: if-else
-          _targetBranches:
-            - id: 'true'
-              name: IF
-            - id: 'false'
-              name: ELSE
         height: 124
         id: retry_router
         position:
@@ -1961,20 +2017,19 @@ workflow:
                 Schema mặc định: {"answer":"...","chart":null}
 
                 answer: tiếng Việt, bảng markdown được. Không SQL, không tên bảng/cột.
-                Chỉ dùng số, mã và tên CÓ TRONG JSON data. Cấm bịa dòng. Cấm thêm
-                vụ/khách không có trong JSON. Liệt kê: mỗi dòng JSON một hàng;
-                copy nguyên field code (ví dụ D2-VV-049). Cấm rút thành VV001,
-                VV-001, hay bịa D2-VV-001. Không có key code trong JSON thì không
-                bịa mã. Cấm lấy số từ ví dụ prompt.
+                Chỉ dùng số, mã và tên CÓ TRONG JSON data. Cấm bịa dòng. Cấm thêm vụ/khách
+                không có trong JSON. Liệt kê: mỗi dòng JSON một hàng; copy nguyên field
+                code (ví dụ D2-VV-049). Cấm rút thành VV001, VV-001, hay bịa D2-VV-001.
+                Không có key code trong JSON thì không bịa mã. Cấm lấy số từ ví dụ prompt.
                 Nếu Số hàng = 0 hoặc data = [] HOẶC câu hỏi thiếu điều kiện (không rõ
-                đếm/liệt kê, thiếu loại/trạng thái/mã khi user cần lọc): answer gồm
-                (1) một câu lý do thật — 0 hàng trong phạm vi Của tôi sau lọc SQL, hoặc
-                câu hỏi chưa đủ rõ; (2) đúng 5 nút Dify, mỗi gợi ý một thẻ (click gửi
-                tin, không đánh số markdown, không href):
-                <button data-message="câu hỏi đầy đủ tiếng Việt" data-variant="secondary">nhãn ngắn</button>
-                data-message = đúng câu user gửi lại, không SQL, không organization_id.
-                chart=null. Không bịa danh sách vụ để cho có.
-                Câu COUNT/SUM khi JSON có số: đọc đúng số đó, không bịa.
+                đếm/liệt kê, thiếu loại/trạng thái/mã khi user cần lọc): answer gồm (1)
+                một câu lý do thật — 0 hàng trong phạm vi Của tôi sau lọc SQL, hoặc câu
+                hỏi chưa đủ rõ; (2) đúng 5 nút Dify, mỗi gợi ý một thẻ (click gửi tin,
+                không đánh số markdown, không href): <button data-message="câu hỏi đầy
+                đủ tiếng Việt" data-variant="secondary">nhãn ngắn</button> data-message
+                = đúng câu user gửi lại, không SQL, không organization_id. chart=null.
+                Không bịa danh sách vụ để cho có. Câu COUNT/SUM khi JSON có số: đọc đúng
+                số đó, không bịa.
 
                 chart chỉ khi câu hỏi liên quan biểu đồ / so sánh trực quan / tỉ lệ /
                 xếp hạng (biểu đồ, pie, bar, top N, tỷ trọng) VÀ có ít nhất 2 điểm số
@@ -2045,7 +2100,10 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          answer: "{{#parse_chart_payload_retry.user_message#}}\n\n{{#echarts_line_retry.text#}}"
+          answer: '{{#parse_chart_payload_retry.user_message#}}
+
+
+            {{#echarts_line_retry.text#}}'
           desc: Bảng + markdown echarts từ plugin Line (retry)
           selected: false
           title: Trả lời + Line (retry)
@@ -2066,7 +2124,10 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          answer: "{{#parse_chart_payload_retry.user_message#}}\n\n{{#echarts_pie_retry.text#}}"
+          answer: '{{#parse_chart_payload_retry.user_message#}}
+
+
+            {{#echarts_pie_retry.text#}}'
           desc: Bảng + markdown echarts từ plugin Pie (retry)
           selected: false
           title: Trả lời + Pie (retry)
@@ -2097,11 +2158,11 @@ workflow:
             COLUMN_DENIED\":\n        label = name or \"một trường\"\n        user =\
             \ (\n            \"Vai trò của bạn không đọc được trường \"\n          \
             \  + label\n            + \". Hãy hỏi phiên bản không gồm thông tin nhạy\
-            \ cảm.\"\n        )\n    elif kind == \"BINDING_DENIED\":\n        user =\
-            \ (\n            \"Câu hỏi của bạn đã hiểu. Hãy hỏi lại ngắn: liệt kê vụ\
-            \ liên quan tôi (mã, tên, trạng thái) — không cần nêu id người dùng.\"\n\
-            \        )\n    else:\n        user = msg if msg else \"Không thực\
-            \ hiện được truy vấn với quyền hiện tại.\"\n    if \"SELECT\" in user.upper()\
+            \ cảm.\"\n        )\n    elif kind == \"BINDING_DENIED\":\n        user\
+            \ = (\n            \"Câu hỏi của bạn đã hiểu. Hãy hỏi lại ngắn: liệt kê\
+            \ vụ liên quan tôi (mã, tên, trạng thái) — không cần nêu id người dùng.\"\
+            \n        )\n    else:\n        user = msg if msg else \"Không thực hiện\
+            \ được truy vấn với quyền hiện tại.\"\n    if \"SELECT\" in user.upper()\
             \ or \"```\" in user:\n        user = \"Không thực hiện được truy vấn với\
             \ quyền hiện tại. Hãy diễn đạt lại câu hỏi.\"\n    return {\"user_message\"\
             : user}\n"
@@ -2166,13 +2227,68 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          code: "import json\n\ndef _num(v):\n    if v is None or isinstance(v, bool):\n        return None\n    if isinstance(v, (int, float)):\n        return float(v)\n    s = str(v).strip().replace(\",\", \"\").replace(\" \", \"\")\n    try:\n        return float(s)\n    except ValueError:\n        return None\n\ndef _strip_fence(raw):\n    t = (raw or \"\").strip()\n    if t.startswith(\"```\"):\n        n = t.find(\"\\n\")\n        t = t[n + 1 :] if n >= 0 else t[3:]\n        if t.endswith(\"```\"):\n            t = t[:-3].strip()\n    return t\n\ndef _obj(text):\n    t = _strip_fence(text)\n    try:\n        parsed = json.loads(t)\n        if isinstance(parsed, dict):\n            return parsed\n    except json.JSONDecodeError:\n        pass\n    a = t.find(\"{\")\n    b = t.rfind(\"}\")\n    if a >= 0 and b > a:\n        try:\n            parsed = json.loads(t[a : b + 1])\n            if isinstance(parsed, dict):\n                return parsed\n        except json.JSONDecodeError:\n            pass\n    return None\n\ndef _collapse(labs, nums):\n    \"\"\"Sum values for the same label so ECharts pie does not error on duplicates.\"\"\"\n    acc = []\n    idx = {}\n    for lab, num in zip(labs, nums):\n        key = (lab or \"\").strip() or \"-\"\n        f = float(num)\n        if key in idx:\n            i = idx[key]\n            acc[i][1] += f\n        else:\n            idx[key] = len(acc)\n            acc.append([key, f])\n    out_labs = []\n    out_nums = []\n    for key, f in acc:\n        out_labs.append(key.replace(\";\", \",\"))\n        out_nums.append(str(int(f) if f == int(f) else f))\n    return out_labs, out_nums\n\ndef main(llm_text=\"\"):\n    empty = {\n        \"user_message\": (llm_text or \"\").strip() or \"Khong co du lieu phu hop.\",\n        \"has_chart\": \"false\",\n        \"chart_kind\": \"line\",\n        \"chart_title\": \"Bieu do\",\n        \"chart_data\": \"0\",\n        \"chart_labels\": \"-\",\n    }\n    parsed = _obj(llm_text)\n    if not parsed:\n        return empty\n    msg = str(parsed.get(\"answer\") or \"\").strip() or empty[\"user_message\"]\n    chart = parsed.get(\"chart\")\n    if not isinstance(chart, dict):\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    title = chart.get(\"title\")\n    if isinstance(title, dict):\n        title = title.get(\"text\")\n    title = str(title or \"Bieu do\").strip() or \"Bieu do\"\n    labels = chart.get(\"labels\") or chart.get(\"categories\") or []\n    values = chart.get(\"values\") or chart.get(\"data\") or []\n    xa = chart.get(\"xAxis\")\n    if isinstance(xa, dict) and not labels:\n        labels = xa.get(\"data\") or []\n    series = chart.get(\"series\")\n    stype = str(chart.get(\"type\") or \"\")\n    if isinstance(series, list) and series and isinstance(series[0], dict):\n        stype = str(series[0].get(\"type\") or stype)\n        if not values:\n            values = series[0].get(\"data\") or []\n    labs = []\n    nums = []\n    if isinstance(values, list) and values and isinstance(values[0], dict):\n        for item in values:\n            if not isinstance(item, dict):\n                continue\n            f = _num(item.get(\"value\"))\n            if f is None:\n                continue\n            labs.append(str(item.get(\"name\") or \"\"))\n            nums.append(f)\n    elif isinstance(labels, list) and isinstance(values, list):\n        n = min(len(labels), len(values))\n        i = 0\n        while i < n:\n            f = _num(values[i])\n            if f is not None:\n                labs.append(str(labels[i] or \"\"))\n                nums.append(f)\n            i += 1\n    labs, nums = _collapse(labs, nums)\n    if len(nums) < 2:\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    raw_kind = stype.strip().lower()\n    if raw_kind in (\"pie\", \"donut\", \"rose\"):\n        kind = \"pie\"\n    elif raw_kind in (\"bar\", \"column\"):\n        kind = \"bar\"\n    else:\n        kind = \"line\"\n    return {\n        \"user_message\": msg,\n        \"has_chart\": \"true\",\n        \"chart_kind\": kind,\n        \"chart_title\": title,\n        \"chart_data\": \";\".join(nums),\n        \"chart_labels\": \";\".join(labs),\n    }\n"
+          code: "import json\n\ndef _num(v):\n    if v is None or isinstance(v, bool):\n\
+            \        return None\n    if isinstance(v, (int, float)):\n        return\
+            \ float(v)\n    s = str(v).strip().replace(\",\", \"\").replace(\" \", \"\
+            \")\n    try:\n        return float(s)\n    except ValueError:\n       \
+            \ return None\n\ndef _strip_fence(raw):\n    t = (raw or \"\").strip()\n\
+            \    if t.startswith(\"```\"):\n        n = t.find(\"\\n\")\n        t =\
+            \ t[n + 1 :] if n >= 0 else t[3:]\n        if t.endswith(\"```\"):\n   \
+            \         t = t[:-3].strip()\n    return t\n\ndef _obj(text):\n    t = _strip_fence(text)\n\
+            \    try:\n        parsed = json.loads(t)\n        if isinstance(parsed,\
+            \ dict):\n            return parsed\n    except json.JSONDecodeError:\n\
+            \        pass\n    a = t.find(\"{\")\n    b = t.rfind(\"}\")\n    if a >=\
+            \ 0 and b > a:\n        try:\n            parsed = json.loads(t[a : b +\
+            \ 1])\n            if isinstance(parsed, dict):\n                return\
+            \ parsed\n        except json.JSONDecodeError:\n            pass\n    return\
+            \ None\n\ndef _collapse(labs, nums):\n    \"\"\"Sum values for the same\
+            \ label so ECharts pie does not error on duplicates.\"\"\"\n    acc = []\n\
+            \    idx = {}\n    for lab, num in zip(labs, nums):\n        key = (lab\
+            \ or \"\").strip() or \"-\"\n        f = float(num)\n        if key in idx:\n\
+            \            i = idx[key]\n            acc[i][1] += f\n        else:\n \
+            \           idx[key] = len(acc)\n            acc.append([key, f])\n    out_labs\
+            \ = []\n    out_nums = []\n    for key, f in acc:\n        out_labs.append(key.replace(\"\
+            ;\", \",\"))\n        out_nums.append(str(int(f) if f == int(f) else f))\n\
+            \    return out_labs, out_nums\n\ndef main(llm_text=\"\"):\n    empty =\
+            \ {\n        \"user_message\": (llm_text or \"\").strip() or \"Khong co\
+            \ du lieu phu hop.\",\n        \"has_chart\": \"false\",\n        \"chart_kind\"\
+            : \"line\",\n        \"chart_title\": \"Bieu do\",\n        \"chart_data\"\
+            : \"0\",\n        \"chart_labels\": \"-\",\n    }\n    parsed = _obj(llm_text)\n\
+            \    if not parsed:\n        return empty\n    msg = str(parsed.get(\"answer\"\
+            ) or \"\").strip() or empty[\"user_message\"]\n    chart = parsed.get(\"\
+            chart\")\n    if not isinstance(chart, dict):\n        out = dict(empty)\n\
+            \        out[\"user_message\"] = msg\n        return out\n    title = chart.get(\"\
+            title\")\n    if isinstance(title, dict):\n        title = title.get(\"\
+            text\")\n    title = str(title or \"Bieu do\").strip() or \"Bieu do\"\n\
+            \    labels = chart.get(\"labels\") or chart.get(\"categories\") or []\n\
+            \    values = chart.get(\"values\") or chart.get(\"data\") or []\n    xa\
+            \ = chart.get(\"xAxis\")\n    if isinstance(xa, dict) and not labels:\n\
+            \        labels = xa.get(\"data\") or []\n    series = chart.get(\"series\"\
+            )\n    stype = str(chart.get(\"type\") or \"\")\n    if isinstance(series,\
+            \ list) and series and isinstance(series[0], dict):\n        stype = str(series[0].get(\"\
+            type\") or stype)\n        if not values:\n            values = series[0].get(\"\
+            data\") or []\n    labs = []\n    nums = []\n    if isinstance(values, list)\
+            \ and values and isinstance(values[0], dict):\n        for item in values:\n\
+            \            if not isinstance(item, dict):\n                continue\n\
+            \            f = _num(item.get(\"value\"))\n            if f is None:\n\
+            \                continue\n            labs.append(str(item.get(\"name\"\
+            ) or \"\"))\n            nums.append(f)\n    elif isinstance(labels, list)\
+            \ and isinstance(values, list):\n        n = min(len(labels), len(values))\n\
+            \        i = 0\n        while i < n:\n            f = _num(values[i])\n\
+            \            if f is not None:\n                labs.append(str(labels[i]\
+            \ or \"\"))\n                nums.append(f)\n            i += 1\n    labs,\
+            \ nums = _collapse(labs, nums)\n    if len(nums) < 2:\n        out = dict(empty)\n\
+            \        out[\"user_message\"] = msg\n        return out\n    raw_kind =\
+            \ stype.strip().lower()\n    if raw_kind in (\"pie\", \"donut\", \"rose\"\
+            ):\n        kind = \"pie\"\n    elif raw_kind in (\"bar\", \"column\"):\n\
+            \        kind = \"bar\"\n    else:\n        kind = \"line\"\n    return\
+            \ {\n        \"user_message\": msg,\n        \"has_chart\": \"true\",\n\
+            \        \"chart_kind\": kind,\n        \"chart_title\": title,\n      \
+            \  \"chart_data\": \";\".join(nums),\n        \"chart_labels\": \";\".join(labs),\n\
+            \    }\n"
           code_language: python3
           desc: Map LLM JSON answer/chart sang bien ECharts title data labels
           outputs:
-            user_message:
-              children: null
-              type: string
             chart_data:
               children: null
               type: string
@@ -2186,6 +2302,9 @@ workflow:
               children: null
               type: string
             has_chart:
+              children: null
+              type: string
+            user_message:
               children: null
               type: string
           selected: false
@@ -2228,11 +2347,6 @@ workflow:
           selected: false
           title: Có Biểu Đồ
           type: if-else
-          _targetBranches:
-            - id: 'true'
-              name: IF
-            - id: 'false'
-              name: ELSE
         height: 124
         id: chart_guard
         position:
@@ -2264,11 +2378,6 @@ workflow:
           selected: false
           title: Loại Biểu Đồ
           type: if-else
-          _targetBranches:
-            - id: pie
-              name: IF
-            - id: 'false'
-              name: ELSE
         height: 124
         id: chart_kind_router
         position:
@@ -2411,10 +2520,12 @@ workflow:
         positionAbsolute:
           x: 4828
           y: -40
+        selected: false
         sourcePosition: right
         targetPosition: left
         type: custom
         width: 242
+        zIndex: 0
       - data:
           is_team_authorization: true
           paramSchemas:
@@ -2542,18 +2653,75 @@ workflow:
         positionAbsolute:
           x: 4828
           y: 80
+        selected: false
         sourcePosition: right
         targetPosition: left
         type: custom
         width: 242
+        zIndex: 0
       - data:
-          code: "import json\n\ndef _num(v):\n    if v is None or isinstance(v, bool):\n        return None\n    if isinstance(v, (int, float)):\n        return float(v)\n    s = str(v).strip().replace(\",\", \"\").replace(\" \", \"\")\n    try:\n        return float(s)\n    except ValueError:\n        return None\n\ndef _strip_fence(raw):\n    t = (raw or \"\").strip()\n    if t.startswith(\"```\"):\n        n = t.find(\"\\n\")\n        t = t[n + 1 :] if n >= 0 else t[3:]\n        if t.endswith(\"```\"):\n            t = t[:-3].strip()\n    return t\n\ndef _obj(text):\n    t = _strip_fence(text)\n    try:\n        parsed = json.loads(t)\n        if isinstance(parsed, dict):\n            return parsed\n    except json.JSONDecodeError:\n        pass\n    a = t.find(\"{\")\n    b = t.rfind(\"}\")\n    if a >= 0 and b > a:\n        try:\n            parsed = json.loads(t[a : b + 1])\n            if isinstance(parsed, dict):\n                return parsed\n        except json.JSONDecodeError:\n            pass\n    return None\n\ndef _collapse(labs, nums):\n    \"\"\"Sum values for the same label so ECharts pie does not error on duplicates.\"\"\"\n    acc = []\n    idx = {}\n    for lab, num in zip(labs, nums):\n        key = (lab or \"\").strip() or \"-\"\n        f = float(num)\n        if key in idx:\n            i = idx[key]\n            acc[i][1] += f\n        else:\n            idx[key] = len(acc)\n            acc.append([key, f])\n    out_labs = []\n    out_nums = []\n    for key, f in acc:\n        out_labs.append(key.replace(\";\", \",\"))\n        out_nums.append(str(int(f) if f == int(f) else f))\n    return out_labs, out_nums\n\ndef main(llm_text=\"\"):\n    empty = {\n        \"user_message\": (llm_text or \"\").strip() or \"Khong co du lieu phu hop.\",\n        \"has_chart\": \"false\",\n        \"chart_kind\": \"line\",\n        \"chart_title\": \"Bieu do\",\n        \"chart_data\": \"0\",\n        \"chart_labels\": \"-\",\n    }\n    parsed = _obj(llm_text)\n    if not parsed:\n        return empty\n    msg = str(parsed.get(\"answer\") or \"\").strip() or empty[\"user_message\"]\n    chart = parsed.get(\"chart\")\n    if not isinstance(chart, dict):\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    title = chart.get(\"title\")\n    if isinstance(title, dict):\n        title = title.get(\"text\")\n    title = str(title or \"Bieu do\").strip() or \"Bieu do\"\n    labels = chart.get(\"labels\") or chart.get(\"categories\") or []\n    values = chart.get(\"values\") or chart.get(\"data\") or []\n    xa = chart.get(\"xAxis\")\n    if isinstance(xa, dict) and not labels:\n        labels = xa.get(\"data\") or []\n    series = chart.get(\"series\")\n    stype = str(chart.get(\"type\") or \"\")\n    if isinstance(series, list) and series and isinstance(series[0], dict):\n        stype = str(series[0].get(\"type\") or stype)\n        if not values:\n            values = series[0].get(\"data\") or []\n    labs = []\n    nums = []\n    if isinstance(values, list) and values and isinstance(values[0], dict):\n        for item in values:\n            if not isinstance(item, dict):\n                continue\n            f = _num(item.get(\"value\"))\n            if f is None:\n                continue\n            labs.append(str(item.get(\"name\") or \"\"))\n            nums.append(f)\n    elif isinstance(labels, list) and isinstance(values, list):\n        n = min(len(labels), len(values))\n        i = 0\n        while i < n:\n            f = _num(values[i])\n            if f is not None:\n                labs.append(str(labels[i] or \"\"))\n                nums.append(f)\n            i += 1\n    labs, nums = _collapse(labs, nums)\n    if len(nums) < 2:\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    raw_kind = stype.strip().lower()\n    if raw_kind in (\"pie\", \"donut\", \"rose\"):\n        kind = \"pie\"\n    elif raw_kind in (\"bar\", \"column\"):\n        kind = \"bar\"\n    else:\n        kind = \"line\"\n    return {\n        \"user_message\": msg,\n        \"has_chart\": \"true\",\n        \"chart_kind\": kind,\n        \"chart_title\": title,\n        \"chart_data\": \";\".join(nums),\n        \"chart_labels\": \";\".join(labs),\n    }\n"
+          code: "import json\n\ndef _num(v):\n    if v is None or isinstance(v, bool):\n\
+            \        return None\n    if isinstance(v, (int, float)):\n        return\
+            \ float(v)\n    s = str(v).strip().replace(\",\", \"\").replace(\" \", \"\
+            \")\n    try:\n        return float(s)\n    except ValueError:\n       \
+            \ return None\n\ndef _strip_fence(raw):\n    t = (raw or \"\").strip()\n\
+            \    if t.startswith(\"```\"):\n        n = t.find(\"\\n\")\n        t =\
+            \ t[n + 1 :] if n >= 0 else t[3:]\n        if t.endswith(\"```\"):\n   \
+            \         t = t[:-3].strip()\n    return t\n\ndef _obj(text):\n    t = _strip_fence(text)\n\
+            \    try:\n        parsed = json.loads(t)\n        if isinstance(parsed,\
+            \ dict):\n            return parsed\n    except json.JSONDecodeError:\n\
+            \        pass\n    a = t.find(\"{\")\n    b = t.rfind(\"}\")\n    if a >=\
+            \ 0 and b > a:\n        try:\n            parsed = json.loads(t[a : b +\
+            \ 1])\n            if isinstance(parsed, dict):\n                return\
+            \ parsed\n        except json.JSONDecodeError:\n            pass\n    return\
+            \ None\n\ndef _collapse(labs, nums):\n    \"\"\"Sum values for the same\
+            \ label so ECharts pie does not error on duplicates.\"\"\"\n    acc = []\n\
+            \    idx = {}\n    for lab, num in zip(labs, nums):\n        key = (lab\
+            \ or \"\").strip() or \"-\"\n        f = float(num)\n        if key in idx:\n\
+            \            i = idx[key]\n            acc[i][1] += f\n        else:\n \
+            \           idx[key] = len(acc)\n            acc.append([key, f])\n    out_labs\
+            \ = []\n    out_nums = []\n    for key, f in acc:\n        out_labs.append(key.replace(\"\
+            ;\", \",\"))\n        out_nums.append(str(int(f) if f == int(f) else f))\n\
+            \    return out_labs, out_nums\n\ndef main(llm_text=\"\"):\n    empty =\
+            \ {\n        \"user_message\": (llm_text or \"\").strip() or \"Khong co\
+            \ du lieu phu hop.\",\n        \"has_chart\": \"false\",\n        \"chart_kind\"\
+            : \"line\",\n        \"chart_title\": \"Bieu do\",\n        \"chart_data\"\
+            : \"0\",\n        \"chart_labels\": \"-\",\n    }\n    parsed = _obj(llm_text)\n\
+            \    if not parsed:\n        return empty\n    msg = str(parsed.get(\"answer\"\
+            ) or \"\").strip() or empty[\"user_message\"]\n    chart = parsed.get(\"\
+            chart\")\n    if not isinstance(chart, dict):\n        out = dict(empty)\n\
+            \        out[\"user_message\"] = msg\n        return out\n    title = chart.get(\"\
+            title\")\n    if isinstance(title, dict):\n        title = title.get(\"\
+            text\")\n    title = str(title or \"Bieu do\").strip() or \"Bieu do\"\n\
+            \    labels = chart.get(\"labels\") or chart.get(\"categories\") or []\n\
+            \    values = chart.get(\"values\") or chart.get(\"data\") or []\n    xa\
+            \ = chart.get(\"xAxis\")\n    if isinstance(xa, dict) and not labels:\n\
+            \        labels = xa.get(\"data\") or []\n    series = chart.get(\"series\"\
+            )\n    stype = str(chart.get(\"type\") or \"\")\n    if isinstance(series,\
+            \ list) and series and isinstance(series[0], dict):\n        stype = str(series[0].get(\"\
+            type\") or stype)\n        if not values:\n            values = series[0].get(\"\
+            data\") or []\n    labs = []\n    nums = []\n    if isinstance(values, list)\
+            \ and values and isinstance(values[0], dict):\n        for item in values:\n\
+            \            if not isinstance(item, dict):\n                continue\n\
+            \            f = _num(item.get(\"value\"))\n            if f is None:\n\
+            \                continue\n            labs.append(str(item.get(\"name\"\
+            ) or \"\"))\n            nums.append(f)\n    elif isinstance(labels, list)\
+            \ and isinstance(values, list):\n        n = min(len(labels), len(values))\n\
+            \        i = 0\n        while i < n:\n            f = _num(values[i])\n\
+            \            if f is not None:\n                labs.append(str(labels[i]\
+            \ or \"\"))\n                nums.append(f)\n            i += 1\n    labs,\
+            \ nums = _collapse(labs, nums)\n    if len(nums) < 2:\n        out = dict(empty)\n\
+            \        out[\"user_message\"] = msg\n        return out\n    raw_kind =\
+            \ stype.strip().lower()\n    if raw_kind in (\"pie\", \"donut\", \"rose\"\
+            ):\n        kind = \"pie\"\n    elif raw_kind in (\"bar\", \"column\"):\n\
+            \        kind = \"bar\"\n    else:\n        kind = \"line\"\n    return\
+            \ {\n        \"user_message\": msg,\n        \"has_chart\": \"true\",\n\
+            \        \"chart_kind\": kind,\n        \"chart_title\": title,\n      \
+            \  \"chart_data\": \";\".join(nums),\n        \"chart_labels\": \";\".join(labs),\n\
+            \    }\n"
           code_language: python3
           desc: Map LLM JSON answer/chart sang bien ECharts title data labels
           outputs:
-            user_message:
-              children: null
-              type: string
             chart_data:
               children: null
               type: string
@@ -2567,6 +2735,9 @@ workflow:
               children: null
               type: string
             has_chart:
+              children: null
+              type: string
+            user_message:
               children: null
               type: string
           selected: false
@@ -2609,11 +2780,6 @@ workflow:
           selected: false
           title: Có Biểu Đồ (retry)
           type: if-else
-          _targetBranches:
-            - id: 'true'
-              name: IF
-            - id: 'false'
-              name: ELSE
         height: 124
         id: chart_guard_retry
         position:
@@ -2645,11 +2811,6 @@ workflow:
           selected: false
           title: Loại Biểu Đồ (retry)
           type: if-else
-          _targetBranches:
-            - id: pie
-              name: IF
-            - id: 'false'
-              name: ELSE
         height: 124
         id: chart_kind_router_retry
         position:
@@ -2792,10 +2953,12 @@ workflow:
         positionAbsolute:
           x: 6558
           y: 180
+        selected: false
         sourcePosition: right
         targetPosition: left
         type: custom
         width: 242
+        zIndex: 0
       - data:
           is_team_authorization: true
           paramSchemas:
@@ -2923,12 +3086,14 @@ workflow:
         positionAbsolute:
           x: 6558
           y: 300
+        selected: false
         sourcePosition: right
         targetPosition: left
         type: custom
         width: 242
+        zIndex: 0
     viewport:
-      x: -2110.0999999999995
-      y: 122.05000000000001
+      x: 70
+      y: 200
       zoom: 0.7
   rag_pipeline_variables: []
