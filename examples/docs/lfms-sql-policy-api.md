@@ -120,18 +120,23 @@ Env Dify (workflow env var): cùng secret.
   "context": {
     "source": "dify",
     "app": "text_to_sql_chatflow",
-    "dify_conversation_id": "optional"
+    "dify_conversation_id": "550e8400-e29b-41d4-a716-446655440000",
+    "dify_user_id": "lfms-12345-1~3",
+    "conversation_title": "Danh sách khách hàng đang hoạt động"
   }
 }
 ```
 
-| Field                    | Type   | Bắt buộc    | Mô tả                                                                  |
-| ------------------------ | ------ | ----------- | ---------------------------------------------------------------------- |
-| `embed_token`            | string | Có*         | JWT từ §2. *Bỏ qua chỉ khi role cố định public readonly có flag nội bộ |
-| `sql`                    | string | Có          | SQL từ LLM (đã tách khối `sql`). Rỗng → `ok: false`                    |
-| `natural_language_query` | string | Không       | Câu hỏi gốc — audit + chặn intent (“super admin”, …)                   |
-| `request_id`             | string | Khuyến nghị | Idempotency / audit                                                    |
-| `context`                | object | Không       | Metadata                                                               |
+| Field                          | Type   | Bắt buộc    | Mô tả                                                                                           |
+| ------------------------------ | ------ | ----------- | ----------------------------------------------------------------------------------------------- |
+| `embed_token`                  | string | Có*         | JWT từ §2. *Bỏ qua chỉ khi role cố định public readonly có flag nội bộ                          |
+| `sql`                          | string | Có          | SQL từ LLM (đã tách khối `sql`). Rỗng → `ok: false`                                             |
+| `natural_language_query`       | string | Không       | Câu hỏi gốc — audit + chặn intent (“super admin”, …)                                            |
+| `request_id`                   | string | Khuyến nghị | Idempotency / audit                                                                             |
+| `context`                      | object | Không       | Metadata. LFMS ghi clock khi có `dify_conversation_id` (UUID) và `dify_user_id` (`sys.user_id`) |
+| `context.dify_conversation_id` | string | Không       | `sys.conversation_id`. Thiếu hoặc không phải UUID → execute vẫn chạy, không ghi lịch sử         |
+| `context.dify_user_id`         | string | Không       | `sys.user_id` (có thể hậu tố `~n`). Bắt buộc để mở lại đúng thread                              |
+| `context.conversation_title`   | string | Không       | `sys.query` lần đầu. Các lượt sau không ghi đè tiêu đề đã có                                    |
 
 **`sql_encrypted` (tùy chọn phase 2):** AES-GCM blob thay `sql` nếu cần; phase 1 có thể chỉ `sql` qua TLS.
 

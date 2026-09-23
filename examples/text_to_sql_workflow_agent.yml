@@ -1059,14 +1059,17 @@ workflow:
             n{LFMS_EXECUTE_PATH}\\n{body_hash}\"\n    return hmac.new(\n        secret.encode(\"\
             utf-8\"),\n        signing_string.encode(\"utf-8\"),\n        hashlib.sha256,\n\
             \    ).hexdigest()\n\ndef main(\n    llm_output: str,\n    lfms_token: str,\n\
-            \    user_query: str,\n    hmac_secret: str,\n) -> dict:\n    text = (llm_output\
+            \    user_query: str,\n    hmac_secret: str,\n    conversation_id: str,\n    dify_user_id: str,\n    conversation_title: str,\n) -> dict:\n    text = (llm_output\
             \ or \"\").strip()\n    match = re.search(r\"```(?:sql)?\\s*(.*?)\\s*```\"\
             , text, re.DOTALL | re.IGNORECASE)\n    clean_sql = match.group(1).strip().rstrip(\"\
             ;\") if match else text.rstrip(\";\").strip()\n\n    payload = {\n     \
             \   \"embed_token\": (lfms_token or \"\").strip(),\n        \"sql\": clean_sql,\n\
             \        \"natural_language_query\": user_query or \"\",\n        \"request_id\"\
             : str(uuid.uuid4()),\n        \"context\": {\n            \"source\": \"\
-            dify\",\n            \"app\": \"text_to_sql_chatflow\",\n        },\n  \
+            dify\",\n            \"app\": \"text_to_sql_chatflow\",\n            \"\
+            dify_conversation_id\": (conversation_id or \"\").strip(),\n            \"\
+            dify_user_id\": (dify_user_id or \"\").strip(),\n            \"conversation_title\"\
+            : (conversation_title or \"\").strip(),\n        },\n  \
             \  }\n    request_json = json.dumps(payload, ensure_ascii=False, separators=(\"\
             ,\", \":\"))\n    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
             \    secret = (hmac_secret or \"\").strip()\n    if not secret:\n      \
@@ -1115,6 +1118,21 @@ workflow:
                 - DIFY_LFMS_HMAC_SECRET
               value_type: secret
               variable: hmac_secret
+            - value_selector:
+                - sys
+                - conversation_id
+              value_type: string
+              variable: conversation_id
+            - value_selector:
+                - sys
+                - user_id
+              value_type: string
+              variable: dify_user_id
+            - value_selector:
+                - sys
+                - query
+              value_type: string
+              variable: conversation_title
         height: 96
         id: build_execute_request
         position:
@@ -1643,14 +1661,17 @@ workflow:
             n{LFMS_EXECUTE_PATH}\\n{body_hash}\"\n    return hmac.new(\n        secret.encode(\"\
             utf-8\"),\n        signing_string.encode(\"utf-8\"),\n        hashlib.sha256,\n\
             \    ).hexdigest()\n\ndef main(\n    llm_output: str,\n    lfms_token: str,\n\
-            \    user_query: str,\n    hmac_secret: str,\n) -> dict:\n    text = (llm_output\
+            \    user_query: str,\n    hmac_secret: str,\n    conversation_id: str,\n    dify_user_id: str,\n    conversation_title: str,\n) -> dict:\n    text = (llm_output\
             \ or \"\").strip()\n    match = re.search(r\"```(?:sql)?\\s*(.*?)\\s*```\"\
             , text, re.DOTALL | re.IGNORECASE)\n    clean_sql = match.group(1).strip().rstrip(\"\
             ;\") if match else text.rstrip(\";\").strip()\n\n    payload = {\n     \
             \   \"embed_token\": (lfms_token or \"\").strip(),\n        \"sql\": clean_sql,\n\
             \        \"natural_language_query\": user_query or \"\",\n        \"request_id\"\
             : str(uuid.uuid4()),\n        \"context\": {\n            \"source\": \"\
-            dify\",\n            \"app\": \"text_to_sql_chatflow\",\n        },\n  \
+            dify\",\n            \"app\": \"text_to_sql_chatflow\",\n            \"\
+            dify_conversation_id\": (conversation_id or \"\").strip(),\n            \"\
+            dify_user_id\": (dify_user_id or \"\").strip(),\n            \"conversation_title\"\
+            : (conversation_title or \"\").strip(),\n        },\n  \
             \  }\n    request_json = json.dumps(payload, ensure_ascii=False, separators=(\"\
             ,\", \":\"))\n    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n\
             \    secret = (hmac_secret or \"\").strip()\n    if not secret:\n      \
@@ -1699,6 +1720,21 @@ workflow:
                 - DIFY_LFMS_HMAC_SECRET
               value_type: secret
               variable: hmac_secret
+            - value_selector:
+                - sys
+                - conversation_id
+              value_type: string
+              variable: conversation_id
+            - value_selector:
+                - sys
+                - user_id
+              value_type: string
+              variable: dify_user_id
+            - value_selector:
+                - sys
+                - query
+              value_type: string
+              variable: conversation_title
         height: 96
         id: build_execute_request_retry
         position:
