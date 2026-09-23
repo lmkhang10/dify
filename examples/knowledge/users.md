@@ -1,6 +1,6 @@
 # Table: users
 
-Nhân viên / luật sư / staff. Không có `deleted_at`. Nhiều vai trò (staff) **không** được query bảng này — không JOIN users chỉ để lấy tên.
+Nhân viên trong văn phòng. Không có `deleted_at`. Chỉ FROM/JOIN khi `users` có trên thẻ quyền của câu hỏi. Không JOIN chỉ để lấy tên cho "của tôi".
 
 Columns:
 

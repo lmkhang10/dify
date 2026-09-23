@@ -8,13 +8,12 @@ Danh mục: hỏi phòng ban / loại vụ thì SELECT từ đây. **Lọc vụ 
 
 ## case_types
 
-- id, organization_id (nếu có)
-- name, slug, description, area
+- id, organization_id, name, slug, created_at, updated_at
 - category: litigation | legal_service
 - workflow (varchar khóa, legacy)
 - workflow_definition_id (bigint, nullable) — không JOIN workflow_definitions trừ khi hỏi quy trình
-- created_at, updated_at
+- Không có `description`, `area`
 
 Sample:
-SELECT id, name, category, area FROM case_types LIMIT 100
+SELECT id, name, category FROM case_types LIMIT 100
 SELECT id, name FROM departments LIMIT 100

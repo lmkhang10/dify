@@ -8,28 +8,24 @@ Columns:
 - organization_id (bigint)
 - code (varchar)
 - name (varchar)
-- type (varchar)
-- template_id (bigint, nullable) — không JOIN contract_templates (không whitelist)
 - client_id (bigint, FK clients.id)
-- case_id (bigint, FK cases.id, nullable)
-- amount (bigint, nullable) — legacy; ưu tiên payment_amount
+- case_id (bigint, FK cases.id, nullable) — phí của một vụ: JOIN đây, không có cột phí trên cases
 - payment_description (varchar) — SeeMoney
 - payment_amount (bigint) — doanh thu / giá trị HĐ; SeeMoney
-- payment_currency (char 3, default VND) — SeeMoney
+- payment_currency (char 3) — SeeMoney
 - payment_due_date (date) — SeeMoney
-- signed_at (timestamp)
+- referral_source (varchar, nullable)
+- referrer_name (varchar) — PII
 - effective_from, expires_at (date)
-- status (varchar, default draft)
 - is_canceled (tinyint)
 - canceled_reason, canceled_at
 - is_completed (tinyint)
 - completed_at (timestamp)
-- referrer_name (varchar) — PII
-- created_by (bigint) — "của tôi": LFMS = created_by OR vụ visibleTo; không JOIN users, không WHERE created_by = số
+- created_by (bigint) — "của tôi": LFMS lọc; không JOIN users, không WHERE created_by = số
 - created_at, updated_at
 - deleted_at — luôn `deleted_at IS NULL`
 
-Không SELECT content / variables_snapshot (nặng, không cần cho thống kê).
+Không có cột `type`, `status`, `template_id`, `amount`, `signed_at`, `total_amount`. Hủy/xong = `is_canceled` / `is_completed`, không lọc `status = 'draft'`. Không SELECT `party_a_snapshot` / `party_b_snapshot`.
 
 Sample — doanh thu theo khách (không JOIN organizations):
 

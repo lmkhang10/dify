@@ -1,6 +1,6 @@
 # Table: organizations
 
-Tổ chức / tenant. Chỉ query khi người dùng hỏi danh sách / thông tin tổ chức. **Không** JOIN bảng này để lấy tên văn phòng trên câu hỏi nghiệp vụ (khách, hợp đồng, vụ) — dễ `TABLE_DENIED` với luật sư/kế toán/nhân viên.
+Tổ chức / tenant. Chỉ query khi người dùng hỏi danh sách / thông tin tổ chức và bảng có trên thẻ quyền. **Không** JOIN bảng này để lấy tên văn phòng trên câu hỏi nghiệp vụ (khách, hợp đồng, vụ).
 
 Columns (được phép):
 
@@ -15,7 +15,7 @@ Columns (được phép):
 
 Cấm SELECT: smtp_password, smtp_username, và mọi cột SMTP/branding bí mật.
 
-Không có cột nhân viên trên bảng này. Đếm nhân sự: bảng `users` (module Users), không JOIN organizations nếu Users-only.
+Không có cột nhân viên trên bảng này. Đếm nhân sự: bảng `users` khi bảng đó có trên thẻ quyền. Không JOIN organizations chỉ để lấy tên văn phòng.
 
 Sample:
 

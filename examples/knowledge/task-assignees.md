@@ -4,7 +4,7 @@ N-N task ↔ user. LFMS whitelist `task_assignees` (tenant qua `tasks`, Mine qua
 
 **Của tôi / việc tôi làm:** chỉ `FROM tasks` — không JOIN bảng này, không `user_id = <số>`. Gateway đã gồm người được gán.
 
-JOIN khi hỏi người làm của **một việc cụ thể** (có mã việc). Nếu module Users tắt: trả `ta.user_id`, **không** JOIN `users`.
+JOIN khi hỏi người làm của **một việc cụ thể** (có mã việc). Nếu `users` không có trên thẻ quyền: trả `ta.user_id`, không JOIN `users`.
 
 Columns:
 

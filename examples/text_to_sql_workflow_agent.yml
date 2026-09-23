@@ -92,6 +92,11 @@ workflow:
       - '{{starter_5}}'
     suggested_questions_after_answer:
       enabled: true
+      prompt: 'Đề xuất đúng 3 câu hỏi tiếp theo bằng tiếng Việt. Mỗi câu là một
+        việc tra cứu trong phần mềm quản lý văn phòng luật: vụ việc, khách hàng,
+        hợp đồng, công việc, công văn, lịch hoặc tài liệu của người đang chat.
+        Không hỏi luật bên ngoài, không hỏi tin tức, không hỏi chuyện chung. Nếu
+        câu vừa rồi không được xem, đừng gợi ý lại chủ đề đó.'
     text_to_speech:
       enabled: false
       language: ''
@@ -174,9 +179,45 @@ workflow:
           isInIteration: false
           isInLoop: false
           sourceType: code
-          targetType: llm
-        id: format-to-llm
+          targetType: code
+        id: format-to-grant
         source: format_schema
+        sourceHandle: source
+        target: build_grant_request
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: http-request
+        id: grant-build-to-http
+        source: build_grant_request
+        sourceHandle: source
+        target: lfms_grant_http
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: http-request
+          targetType: code
+        id: grant-http-to-card
+        source: lfms_grant_http
+        sourceHandle: source
+        target: format_grant_card
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: llm
+        id: grant-card-to-llm
+        source: format_grant_card
         sourceHandle: source
         target: llm_sql_generator
         targetHandle: target
@@ -688,7 +729,7 @@ workflow:
             ,\n        _as_text(base_in) or \"(rỗng)\",\n    ]\n    return \"\\n\".join(lines)\n\
             \ndef _reject(code, reason, token_in, base_in, token, base, token_how, base_how):\n\
             \    return {\n        \"embed_ok\": \"false\",\n        \"error_message\"\
-            : _dump(token_in, base_in, token, base, token_how, base_how, code, reason),\n\
+            : \"Chat chưa sẵn sàng. Hãy tải lại trang.\",\n\
             \        \"embed_token\": token or \"\",\n        \"api_base\": base or\
             \ \"\",\n    }\n\ndef main(lfms_token=None, lfms_api_base=None):\n    token_in\
             \ = lfms_token\n    base_in = lfms_api_base\n    token, token_how = _maybe_decompress(token_in)\n\
@@ -857,6 +898,9 @@ workflow:
                 5. "của tôi", "liên quan tôi", "tôi phụ trách", "LS phụ trách" giữ nguyên
                 — không thay "tôi" bằng tên người, không bịa mã vụ.
 
+                6. Đúng một dòng, là câu hỏi. Cấm bảng markdown, cấm liệt kê mã, cấm
+                trả lời thay cho câu hỏi. Không có VV001 hay tên vụ trong output.
+
                 '
             - id: rewrite-user-01
               role: user
@@ -936,7 +980,7 @@ workflow:
             clients.lead_stage: new|consulting|proposal|negotiating|won|lost\ncases.category:\
             \ litigation|legal_service\ncases.status: new|in_progress|on_hold|closed\n\
             tasks: không cột status; priority emergency|high|medium|low; progress 0-100\n\
-            users.status: active|away|inactive\n\"\"\"\n\nFALLBACK = \"\"\"### FALLBACK\
+            users.status: active|away|inactive\nCỘT KHÓA — chỉ các tên này, cấm bịa:\ncases: id, organization_id, code, name, client_id, case_type_id, category, status, priority, hold_reason, held_at, held_by, open_date, deadline, closed_at, reopen_count, description, notes, lead_lawyer_id, created_by, stage, outcome, outcome_note, workflow_definition_id, workflow_version_id, stage_due_at, client_notified_at, created_at, updated_at, deleted_at.\ncases KHÔNG CÓ: fee_estimate, billing_method, area, on_hold, amount. Phí vụ = contracts.payment_amount JOIN contracts.case_id.\ncases.priority: high|medium|low. stage/outcome không enum cố định — SELECT nguyên, cấm won/filing/trial.\ncontracts: id, organization_id, code, name, client_id, case_id, payment_description, payment_amount, payment_currency, payment_due_date, referral_source, effective_from, expires_at, is_canceled, canceled_at, canceled_reason, is_completed, completed_at, created_by, created_at, updated_at, deleted_at.\ncontracts KHÔNG CÓ: type, status, template_id, amount, signed_at, total_amount.\nclients KHÔNG CÓ: city, district, ward.\ncase_types: id, organization_id, name, slug, category, workflow, workflow_definition_id, created_at, updated_at. KHÔNG description, area.\n\"\"\"\n\nFALLBACK = \"\"\"### FALLBACK\
             \ SCHEMA (KB empty) ###\nGlossary: khách=clients (profile_kind client|lead);\
             \ vụ=cases (category litigation|legal_service); HĐ=contracts.payment_amount;\
             \ đợt thu=payments; việc=tasks + task_assignees\nKHÔNG JOIN organizations/departments\
@@ -944,10 +988,8 @@ workflow:
             \ *. Subquery IN/EXISTS được (LFMS rewrite tenant).\nTable: clients — id,\
             \ organization_id, name, profile_kind, type, status, lead_stage, assigned_to,\
             \ created_by, deleted_at\nTable: cases — id, code, name, client_id, category,\
-            \ status, held_at, fee_estimate, billing_method, lead_lawyer_id, deleted_at.\
-            \ Cấm cột on_hold boolean.\nTable: contracts — id, name, type, status, template_id,\
-            \ client_id, case_id, payment_amount, payment_currency, payment_due_date,\
-            \ is_canceled, is_completed, deleted_at\nTable: tasks — id, title, case_id,\
+            \ status, priority, hold_reason, held_at, open_date, deadline, closed_at, stage, outcome, lead_lawyer_id, case_type_id, deleted_at. KHÔNG fee_estimate/billing_method/area/on_hold.\
+            \ Cấm cột on_hold boolean.\nTable: contracts — id, code, name, client_id, case_id, payment_amount, payment_currency, payment_due_date, is_canceled, is_completed, deleted_at. KHÔNG type/status/template_id/amount.\nTable: tasks — id, title, case_id,\
             \ created_by, priority, progress, due_date, deleted_at. Không cột status/assigned_to.\n\
             Table: task_assignees — task_id, user_id\nTable: payments — contract_id,\
             \ amount, currency, due_date, status, direction, paid_at\nTable: users —\
@@ -989,6 +1031,133 @@ workflow:
         positionAbsolute:
           x: 1388
           y: 118.23095238095237
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          code: "import hashlib\nimport hmac\nimport json\nimport time\nimport uuid\n\nLFMS_GRANT_PATH = \"/api/internal/dify/sql/grant\"\nHTTP_METHOD = \"POST\"\n\ndef _sign(raw_body: str, timestamp: str, nonce: str, secret: str) -> str:\n    body_hash = hashlib.sha256(raw_body.encode(\"utf-8\")).hexdigest()\n    signing_string = f\"{timestamp}\\n{nonce}\\n{HTTP_METHOD}\\n{LFMS_GRANT_PATH}\\n{body_hash}\"\n    return hmac.new(secret.encode(\"utf-8\"), signing_string.encode(\"utf-8\"), hashlib.sha256).hexdigest()\n\ndef main(lfms_token: str, hmac_secret: str) -> dict:\n    payload = {\"embed_token\": (lfms_token or \"\").strip()}\n    request_json = json.dumps(payload, ensure_ascii=False, separators=(\",\", \":\"))\n    timestamp = str(int(time.time()))\n    nonce = str(uuid.uuid4())\n    secret = (hmac_secret or \"\").strip()\n    signature = _sign(request_json, timestamp, nonce, secret) if secret else \"\"\n    return {\n        \"request_json\": request_json,\n        \"timestamp\": timestamp,\n        \"nonce\": nonce,\n        \"signature\": signature,\n    }\n"
+          code_language: python3
+          desc: HMAC POST /api/internal/dify/sql/grant
+          outputs:
+            nonce:
+              children: null
+              type: string
+            request_json:
+              children: null
+              type: string
+            signature:
+              children: null
+              type: string
+            timestamp:
+              children: null
+              type: string
+          selected: false
+          title: Chuẩn Bị Grant Request
+          type: code
+          variables:
+            - value_selector:
+                - validate_embed
+                - embed_token
+              value_type: string
+              variable: lfms_token
+            - value_selector:
+                - env
+                - DIFY_LFMS_HMAC_SECRET
+              value_type: secret
+              variable: hmac_secret
+        height: 96
+        id: build_grant_request
+        position:
+          x: 1500
+          y: 360
+        positionAbsolute:
+          x: 1500
+          y: 360
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          authorization:
+            type: no-auth
+          body:
+            data: '{{#build_grant_request.request_json#}}'
+            type: raw-text
+          desc: POST /api/internal/dify/sql/grant
+          headers: 'Content-Type:application/json
+
+            X-Dify-Timestamp:{{#build_grant_request.timestamp#}}
+
+            X-Dify-Nonce:{{#build_grant_request.nonce#}}
+
+            X-Dify-Signature:{{#build_grant_request.signature#}}'
+          method: post
+          params: ''
+          retry_config:
+            enabled: false
+            exponential_backoff:
+              enabled: false
+              max_interval: 10000
+              multiplier: 2
+            max_retries: 1
+            retry_interval: 1000
+          selected: false
+          timeout:
+            connect: 10
+            read: 30
+            write: 30
+          title: Gọi LFMS Grant
+          type: http-request
+          url: '{{#validate_embed.api_base#}}/api/internal/dify/sql/grant'
+        height: 171
+        id: lfms_grant_http
+        position:
+          x: 1760
+          y: 360
+        positionAbsolute:
+          x: 1760
+          y: 360
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 242
+        zIndex: 0
+      - data:
+          code: "import json\n\ndef main(http_status, http_body: str) -> dict:\n    fallback = \"Thẻ quyền trống. Chỉ viết SELECT tối thiểu. LFMS từ chối bảng hoặc cột ngoài quyền.\"\n    try:\n        status = int(http_status or 0)\n    except (TypeError, ValueError):\n        status = 0\n    if status < 200 or status >= 300:\n        return {\"grant_text\": fallback}\n    try:\n        parsed = json.loads(http_body or \"\")\n    except json.JSONDecodeError:\n        return {\"grant_text\": fallback}\n    if not isinstance(parsed, dict) or not parsed.get(\"ok\"):\n        return {\"grant_text\": fallback}\n    tables = [str(t) for t in (parsed.get(\"tables\") or [])]\n    mine = [str(t) for t in (parsed.get(\"mine_tables\") or [])]\n    office = [str(t) for t in (parsed.get(\"office_tables\") or [])]\n    denied = parsed.get(\"denied_columns\") or {}\n    lines = [\"THẺ QUYỀN (đọc mỗi câu, không theo vai trò):\"]\n    lines.append(\"Bảng được FROM/JOIN: \" + (\", \".join(tables) if tables else \"(không có)\"))\n    if mine:\n        lines.append(\"Của tôi (LFMS tự lọc, không viết id người, không organization_id): \" + \", \".join(mine))\n    if office:\n        lines.append(\"Cả văn phòng: \" + \", \".join(office))\n    bits = []\n    if isinstance(denied, dict):\n        for table, cols in denied.items():\n            if isinstance(cols, list) and cols:\n                bits.append(str(table) + \": \" + \", \".join(str(c) for c in cols))\n    if bits:\n        lines.append(\"Cột cấm (kể cả trong SUM/WHERE): \" + \"; \".join(bits))\n    lines.append(\"Bảng không có trên thẻ: không JOIN, không đoán id. Cần tên người mà không có users: trả UNSUPPORTED_PERSON.\")\n    lines.append(\"Tên nhân sự do LFMS điền («người phụ trách», «người tạo», …): chỉ khi đó là chính người hỏi, hoặc khi users có trên thẻ. Không tự JOIN để lấy tên. Cột trong mục cấm (tiền, điện thoại, email) không được điền thay, kể cả của chính người hỏi.\")\n    return {\"grant_text\": \"\\n\".join(lines)}\n"
+          code_language: python3
+          desc: Thẻ quyền tiếng Việt cho prompt SQL
+          outputs:
+            grant_text:
+              children: null
+              type: string
+          selected: false
+          title: Thẻ Quyền
+          type: code
+          variables:
+            - value_selector:
+                - lfms_grant_http
+                - status_code
+              value_type: number
+              variable: http_status
+            - value_selector:
+                - lfms_grant_http
+                - body
+              value_type: string
+              variable: http_body
+        height: 80
+        id: format_grant_card
+        position:
+          x: 2020
+          y: 360
+        positionAbsolute:
+          x: 2020
+          y: 360
         selected: false
         sourcePosition: right
         targetPosition: left
@@ -1049,9 +1218,8 @@ workflow:
                 AND LIKE tên loại (không đếm cả category litigation). Tenant do LFMS chèn.
                 Trả id; tóm tắt sẽ nói thuộc văn phòng bạn.
 
-                9. Không JOIN users cho "tôi / liên quan tôi / LS phụ trách". LFMS đã
-                lọc Của tôi (gồm lead_lawyer_id). JOIN users khi nhân viên không có module
-                Users → TABLE_DENIED, mất cả vụ của bạn.
+                9. Chỉ FROM/JOIN bảng có trong thẻ quyền. Bảng không có thì không viết
+                SQL thay và không đoán id người.
 
                 10. Ưu tiên report_daily_* cho tổng hợp. FLOW được SUM; STOCK lấy ngày
                 cuối kỳ, không SUM.
@@ -1072,18 +1240,31 @@ workflow:
                 15. Liệt kê vụ: SELECT cases.code, cases.name, cases.status (và cột cần).
                 Không bịa mã. Mã copy nguyên từ DB (tiền tố org). Không rút thành VV001.
 
-                16. Của tôi / liên quan tôi / tôi phụ trách / LS phụ trách: SELECT từ
-                bảng được hỏi, KHÔNG thêm WHERE user_id / lead_lawyer_id / created_by,
-                KHÔNG JOIN users / case_team. Gateway Mine = luật sư phụ trách OR người
-                tạo OR đội OR khách assigned/created.
+                16. Bảng trong mục Của tôi của thẻ quyền: SELECT bảng được hỏi, không
+                WHERE user_id / lead_lawyer_id / created_by, không JOIN users chỉ để
+                nói "tôi". LFMS tự lọc.
 
-                17. Cấm placeholder `:current_user_id` / `:name` / `?`. LFMS tự lọc Của
-                tôi. Không JOIN users/tasks chỉ để diễn tả "tôi".
+                17. Cấm placeholder `:current_user_id` / `:name` / `?`. Không gán
+                lead_lawyer_id / user_id / created_by = số nếu số không có trong câu hỏi.
+
+                18. Chỉ SELECT cột có tên trong schema_docs (mục CỘT KHÓA). Không có
+                tên = không tồn tại. Cấm bịa cases.fee_estimate, billing_method, area,
+                on_hold, contracts.type/status/template_id/amount/signed_at, clients.city.
+                Phí vụ = contracts.payment_amount JOIN contracts.case_id.
+
+                19. Cột nằm trong mục cấm của thẻ: không SELECT, không SUM, không WHERE.
+                Hỏi tên người mà bảng users không có trên thẻ: trả đúng một dòng
+                UNSUPPORTED_PERSON, không gán id.
 
                 '
             - id: 1c37b098-a3c5-4128-aa64-1016a14418ed
               role: user
-              text: 'Câu hỏi độc lập (viết SQL theo câu này): {{#llm_rewrite_query.text#}}
+              text: 'Thẻ quyền:
+
+                {{#format_grant_card.grant_text#}}
+
+
+                Câu hỏi độc lập (viết SQL theo câu này): {{#llm_rewrite_query.text#}}
 
 
                 Câu gốc: {{#sys.query#}} '
@@ -1266,14 +1447,14 @@ workflow:
             \    codes.append(str(v.get(\"code\") or \"\"))\n                names.append(str(v.get(\"\
             name\") or \"\"))\n        codes.append(str(parsed.get(\"code\") or \"\"\
             ))\n    text = (message or \"\") + \" \" + \" \".join(codes) + \" \" + \"\
-            \ \".join(names)\n    kind = \"\"\n    if \"TABLE_DENIED\" in text:\n  \
+            \ \".join(names)\n    kind = \"\"\n    if \"ACTOR_ID_DENIED\" in text:\n        return \"false\", \"ACTOR_ID_DENIED\", \"\"\n    if \"TABLE_DENIED\" in text:\n  \
             \      kind = \"TABLE_DENIED\"\n    elif \"COLUMN_DENIED\" in text:\n  \
             \      kind = \"COLUMN_DENIED\"\n    elif \"BINDING_DENIED\" in text:\n\
-            \        kind = \"BINDING_DENIED\"\n    retry = \"true\" if kind else \"\
+            \        kind = \"BINDING_DENIED\"\n    elif \"Unknown column\" in text:\n        kind = \"UNKNOWN_COLUMN\"\n    retry = \"true\" if kind else \"\
             false\"\n    return retry, kind, \" \".join(n for n in names if n).strip()\n\
             \ndef main(http_status, http_body: str) -> dict:\n    fail = {\n       \
             \ \"is_ok\": \"false\",\n        \"data_json\": \"[]\",\n        \"row_count\"\
-            : \"0\",\n        \"error_message\": \"Không kết nối được LFMS SQL Gateway\"\
+            : \"0\",\n        \"error_message\": \"Không kết nối được. Hãy thử lại sau.\"\
             ,\n        \"can_retry\": \"false\",\n        \"denial_kind\": \"\",\n \
             \       \"denied_name\": \"\",\n    }\n    try:\n        status = int(http_status\
             \ or 0)\n    except (TypeError, ValueError):\n        status = 0\n\n   \
@@ -1290,7 +1471,7 @@ workflow:
             \ \"\\nGợi ý: điền DIFY_LFMS_HMAC_SECRET trên Dify (Workflow → Environment)\
             \ trùng apps/.env LFMS. Secret rỗng = thiếu chữ ký.\"\n        return {**fail,\
             \ \"error_message\": err}\n\n    if not isinstance(parsed, dict):\n    \
-            \    return {**fail, \"error_message\": \"Phản hồi LFMS không hợp lệ\"}\n\
+            \    return {**fail, \"error_message\": \"Mình chưa trả lời được lúc này. Hãy thử lại.\"}\n\
             \n    if bool(parsed.get(\"ok\")):\n        rows = parsed.get(\"data\")\n\
             \        if not isinstance(rows, list):\n            rows = []\n       \
             \ try:\n            row_count = int(parsed.get(\"row_count\", len(rows)))\n\
@@ -1430,10 +1611,14 @@ workflow:
                 Chỉ dùng số, mã và tên CÓ TRONG JSON data. Cấm bịa dòng. Cấm thêm vụ/khách
                 không có trong JSON. Liệt kê: mỗi dòng JSON một hàng; copy nguyên field
                 code (ví dụ D2-VV-049). Cấm rút thành VV001, VV-001, hay bịa D2-VV-001.
+                Mã enum thì dịch sang nhãn tiếng Việt, cấm in literal: cases.status new=Mới,
+                in_progress=Đang xử lý, on_hold=Tạm dừng, closed=Hoàn thành; category
+                litigation=Tố tụng, legal_service=Dịch vụ pháp lý.
                 Không có key code trong JSON thì không bịa mã. Cấm lấy số từ ví dụ prompt.
+                Có «người phụ trách» hoặc «người tạo» thì ghi đúng tên đó. Không nhắc mã số, tên cột, hay bảo cần xem thêm danh sách nhân viên.
                 Nếu Số hàng = 0 hoặc data = [] HOẶC câu hỏi thiếu điều kiện (không rõ
                 đếm/liệt kê, thiếu loại/trạng thái/mã khi user cần lọc): answer gồm (1)
-                một câu lý do thật — 0 hàng trong phạm vi Của tôi sau lọc SQL, hoặc câu
+                một câu lý do thật, lời thường, không dùng từ SQL, bảng, cột, id, truy vấn — không có dữ liệu phù hợp, hoặc câu
                 hỏi chưa đủ rõ; (2) đúng 5 nút Dify, mỗi gợi ý một thẻ (click gửi tin,
                 không đánh số markdown, không href): <button data-message="câu hỏi đầy
                 đủ tiếng Việt" data-variant="secondary">nhãn ngắn</button> data-message
@@ -1580,24 +1765,7 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          code: "def main(error_message: str, denial_kind: str, denied_name: str) ->\
-            \ dict:\n    msg = (error_message or \"\").strip()\n    kind = (denial_kind\
-            \ or \"\").strip()\n    name = (denied_name or \"\").strip()\n    if kind\
-            \ == \"TABLE_DENIED\":\n        label = name or \"nhóm dữ liệu này\"\n \
-            \       user = (\n            \"Vai trò của bạn không xem được \"\n    \
-            \        + label\n            + \". Hãy hỏi lại mà không cần tên văn phòng,\
-            \ phòng ban hay dữ liệu ngoài phạm vi.\"\n        )\n    elif kind == \"\
-            COLUMN_DENIED\":\n        label = name or \"một trường\"\n        user =\
-            \ (\n            \"Vai trò của bạn không đọc được trường \"\n          \
-            \  + label\n            + \". Hãy hỏi phiên bản không gồm thông tin nhạy\
-            \ cảm.\"\n        )\n    elif kind == \"BINDING_DENIED\":\n        user\
-            \ = (\n            \"Câu hỏi của bạn đã hiểu. Hãy hỏi lại ngắn: liệt kê\
-            \ vụ liên quan tôi (mã, tên, trạng thái) — không cần nêu id người dùng.\"\
-            \n        )\n    else:\n        user = msg if msg else \"Không thực hiện\
-            \ được truy vấn với quyền hiện tại.\"\n    if \"SELECT\" in user.upper()\
-            \ or \"```\" in user:\n        user = \"Không thực hiện được truy vấn với\
-            \ quyền hiện tại. Hãy diễn đạt lại câu hỏi.\"\n    return {\"user_message\"\
-            : user}\n"
+          code: "def main(error_message: str, denial_kind: str, denied_name: str) -> dict:\n    kind = (denial_kind or \"\").strip()\n    if kind == \"TABLE_DENIED\":\n        user = \"Bạn không xem được phần này. Hãy hỏi trong phạm vi công việc của bạn.\"\n    elif kind == \"COLUMN_DENIED\":\n        user = \"Bạn không xem được thông tin này.\"\n    elif kind == \"BINDING_DENIED\":\n        user = \"Hãy hỏi lại rõ hơn, ví dụ vụ bạn phụ trách.\"\n    elif kind == \"ACTOR_ID_DENIED\":\n        user = \"Không tìm được vụ theo tên luật sư. Hãy hỏi vụ của bạn. Muốn xem vụ của người khác thì tài khoản cần được phép xem danh sách nhân viên.\"\n    else:\n        user = \"Mình chưa trả lời được lúc này. Hãy hỏi lại ngắn hơn.\"\n    return {\"user_message\": user}\n"
           code_language: python3
           desc: Map TABLE_DENIED/COLUMN_DENIED sang câu tiếng Việt, không in SQL
           outputs:
@@ -1674,10 +1842,24 @@ workflow:
                 Cấm UNION/WITH/SELECT *. Subquery IN/EXISTS được. Chỉ SELECT. Soft-delete
                 như schema.
 
-                Chỉ trả ```sql ... ```. Không giải thích. '
+                Chỉ trả ```sql ... ```. Không giải thích.
+
+                Lỗi Unknown column: bỏ đúng cột đó. Không đổi sang tên gần nghĩa.
+                cases không có fee_estimate/billing_method/area.
+
+                Đọc thẻ quyền. Bỏ bảng và cột không có trên thẻ. Cấm gán
+                lead_lawyer_id / created_by / user_id / assigned_to = số.
+
+                Nếu câu cần tên người mà users không có trên thẻ: trả đúng một dòng
+                UNSUPPORTED_PERSON. Không viết SQL khác. '
             - id: 8c11e0a1-4f2a-4b9c-9d01-repair-sql-02
               role: user
-              text: 'Câu hỏi: {{#llm_rewrite_query.text#}}
+              text: 'Thẻ quyền:
+
+                {{#format_grant_card.grant_text#}}
+
+
+                Câu hỏi: {{#llm_rewrite_query.text#}}
 
 
                 Lỗi: {{#parse_execute_response.error_message#}}
@@ -1867,14 +2049,14 @@ workflow:
             \    codes.append(str(v.get(\"code\") or \"\"))\n                names.append(str(v.get(\"\
             name\") or \"\"))\n        codes.append(str(parsed.get(\"code\") or \"\"\
             ))\n    text = (message or \"\") + \" \" + \" \".join(codes) + \" \" + \"\
-            \ \".join(names)\n    kind = \"\"\n    if \"TABLE_DENIED\" in text:\n  \
+            \ \".join(names)\n    kind = \"\"\n    if \"ACTOR_ID_DENIED\" in text:\n        return \"false\", \"ACTOR_ID_DENIED\", \"\"\n    if \"TABLE_DENIED\" in text:\n  \
             \      kind = \"TABLE_DENIED\"\n    elif \"COLUMN_DENIED\" in text:\n  \
             \      kind = \"COLUMN_DENIED\"\n    elif \"BINDING_DENIED\" in text:\n\
-            \        kind = \"BINDING_DENIED\"\n    retry = \"true\" if kind else \"\
+            \        kind = \"BINDING_DENIED\"\n    elif \"Unknown column\" in text:\n        kind = \"UNKNOWN_COLUMN\"\n    retry = \"true\" if kind else \"\
             false\"\n    return retry, kind, \" \".join(n for n in names if n).strip()\n\
             \ndef main(http_status, http_body: str) -> dict:\n    fail = {\n       \
             \ \"is_ok\": \"false\",\n        \"data_json\": \"[]\",\n        \"row_count\"\
-            : \"0\",\n        \"error_message\": \"Không kết nối được LFMS SQL Gateway\"\
+            : \"0\",\n        \"error_message\": \"Không kết nối được. Hãy thử lại sau.\"\
             ,\n        \"can_retry\": \"false\",\n        \"denial_kind\": \"\",\n \
             \       \"denied_name\": \"\",\n    }\n    try:\n        status = int(http_status\
             \ or 0)\n    except (TypeError, ValueError):\n        status = 0\n\n   \
@@ -1891,7 +2073,7 @@ workflow:
             \ \"\\nGợi ý: điền DIFY_LFMS_HMAC_SECRET trên Dify (Workflow → Environment)\
             \ trùng apps/.env LFMS. Secret rỗng = thiếu chữ ký.\"\n        return {**fail,\
             \ \"error_message\": err}\n\n    if not isinstance(parsed, dict):\n    \
-            \    return {**fail, \"error_message\": \"Phản hồi LFMS không hợp lệ\"}\n\
+            \    return {**fail, \"error_message\": \"Mình chưa trả lời được lúc này. Hãy thử lại.\"}\n\
             \n    if bool(parsed.get(\"ok\")):\n        rows = parsed.get(\"data\")\n\
             \        if not isinstance(rows, list):\n            rows = []\n       \
             \ try:\n            row_count = int(parsed.get(\"row_count\", len(rows)))\n\
@@ -2020,10 +2202,14 @@ workflow:
                 Chỉ dùng số, mã và tên CÓ TRONG JSON data. Cấm bịa dòng. Cấm thêm vụ/khách
                 không có trong JSON. Liệt kê: mỗi dòng JSON một hàng; copy nguyên field
                 code (ví dụ D2-VV-049). Cấm rút thành VV001, VV-001, hay bịa D2-VV-001.
+                Mã enum thì dịch sang nhãn tiếng Việt, cấm in literal: cases.status new=Mới,
+                in_progress=Đang xử lý, on_hold=Tạm dừng, closed=Hoàn thành; category
+                litigation=Tố tụng, legal_service=Dịch vụ pháp lý.
                 Không có key code trong JSON thì không bịa mã. Cấm lấy số từ ví dụ prompt.
+                Có «người phụ trách» hoặc «người tạo» thì ghi đúng tên đó. Không nhắc mã số, tên cột, hay bảo cần xem thêm danh sách nhân viên.
                 Nếu Số hàng = 0 hoặc data = [] HOẶC câu hỏi thiếu điều kiện (không rõ
                 đếm/liệt kê, thiếu loại/trạng thái/mã khi user cần lọc): answer gồm (1)
-                một câu lý do thật — 0 hàng trong phạm vi Của tôi sau lọc SQL, hoặc câu
+                một câu lý do thật, lời thường, không dùng từ SQL, bảng, cột, id, truy vấn — không có dữ liệu phù hợp, hoặc câu
                 hỏi chưa đủ rõ; (2) đúng 5 nút Dify, mỗi gợi ý một thẻ (click gửi tin,
                 không đánh số markdown, không href): <button data-message="câu hỏi đầy
                 đủ tiếng Việt" data-variant="secondary">nhãn ngắn</button> data-message
@@ -2148,24 +2334,7 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          code: "def main(error_message: str, denial_kind: str, denied_name: str) ->\
-            \ dict:\n    msg = (error_message or \"\").strip()\n    kind = (denial_kind\
-            \ or \"\").strip()\n    name = (denied_name or \"\").strip()\n    if kind\
-            \ == \"TABLE_DENIED\":\n        label = name or \"nhóm dữ liệu này\"\n \
-            \       user = (\n            \"Vai trò của bạn không xem được \"\n    \
-            \        + label\n            + \". Hãy hỏi lại mà không cần tên văn phòng,\
-            \ phòng ban hay dữ liệu ngoài phạm vi.\"\n        )\n    elif kind == \"\
-            COLUMN_DENIED\":\n        label = name or \"một trường\"\n        user =\
-            \ (\n            \"Vai trò của bạn không đọc được trường \"\n          \
-            \  + label\n            + \". Hãy hỏi phiên bản không gồm thông tin nhạy\
-            \ cảm.\"\n        )\n    elif kind == \"BINDING_DENIED\":\n        user\
-            \ = (\n            \"Câu hỏi của bạn đã hiểu. Hãy hỏi lại ngắn: liệt kê\
-            \ vụ liên quan tôi (mã, tên, trạng thái) — không cần nêu id người dùng.\"\
-            \n        )\n    else:\n        user = msg if msg else \"Không thực hiện\
-            \ được truy vấn với quyền hiện tại.\"\n    if \"SELECT\" in user.upper()\
-            \ or \"```\" in user:\n        user = \"Không thực hiện được truy vấn với\
-            \ quyền hiện tại. Hãy diễn đạt lại câu hỏi.\"\n    return {\"user_message\"\
-            : user}\n"
+          code: "def main(error_message: str, denial_kind: str, denied_name: str) -> dict:\n    kind = (denial_kind or \"\").strip()\n    if kind == \"TABLE_DENIED\":\n        user = \"Bạn không xem được phần này. Hãy hỏi trong phạm vi công việc của bạn.\"\n    elif kind == \"COLUMN_DENIED\":\n        user = \"Bạn không xem được thông tin này.\"\n    elif kind == \"BINDING_DENIED\":\n        user = \"Hãy hỏi lại rõ hơn, ví dụ vụ bạn phụ trách.\"\n    elif kind == \"ACTOR_ID_DENIED\":\n        user = \"Không tìm được vụ theo tên luật sư. Hãy hỏi vụ của bạn. Muốn xem vụ của người khác thì tài khoản cần được phép xem danh sách nhân viên.\"\n    else:\n        user = \"Mình chưa trả lời được lúc này. Hãy hỏi lại ngắn hơn.\"\n    return {\"user_message\": user}\n"
           code_language: python3
           desc: Từ chối sau 1 lần sửa SQL — không in SQL
           outputs:
@@ -2227,65 +2396,7 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          code: "import json\n\ndef _num(v):\n    if v is None or isinstance(v, bool):\n\
-            \        return None\n    if isinstance(v, (int, float)):\n        return\
-            \ float(v)\n    s = str(v).strip().replace(\",\", \"\").replace(\" \", \"\
-            \")\n    try:\n        return float(s)\n    except ValueError:\n       \
-            \ return None\n\ndef _strip_fence(raw):\n    t = (raw or \"\").strip()\n\
-            \    if t.startswith(\"```\"):\n        n = t.find(\"\\n\")\n        t =\
-            \ t[n + 1 :] if n >= 0 else t[3:]\n        if t.endswith(\"```\"):\n   \
-            \         t = t[:-3].strip()\n    return t\n\ndef _obj(text):\n    t = _strip_fence(text)\n\
-            \    try:\n        parsed = json.loads(t)\n        if isinstance(parsed,\
-            \ dict):\n            return parsed\n    except json.JSONDecodeError:\n\
-            \        pass\n    a = t.find(\"{\")\n    b = t.rfind(\"}\")\n    if a >=\
-            \ 0 and b > a:\n        try:\n            parsed = json.loads(t[a : b +\
-            \ 1])\n            if isinstance(parsed, dict):\n                return\
-            \ parsed\n        except json.JSONDecodeError:\n            pass\n    return\
-            \ None\n\ndef _collapse(labs, nums):\n    \"\"\"Sum values for the same\
-            \ label so ECharts pie does not error on duplicates.\"\"\"\n    acc = []\n\
-            \    idx = {}\n    for lab, num in zip(labs, nums):\n        key = (lab\
-            \ or \"\").strip() or \"-\"\n        f = float(num)\n        if key in idx:\n\
-            \            i = idx[key]\n            acc[i][1] += f\n        else:\n \
-            \           idx[key] = len(acc)\n            acc.append([key, f])\n    out_labs\
-            \ = []\n    out_nums = []\n    for key, f in acc:\n        out_labs.append(key.replace(\"\
-            ;\", \",\"))\n        out_nums.append(str(int(f) if f == int(f) else f))\n\
-            \    return out_labs, out_nums\n\ndef main(llm_text=\"\"):\n    empty =\
-            \ {\n        \"user_message\": (llm_text or \"\").strip() or \"Khong co\
-            \ du lieu phu hop.\",\n        \"has_chart\": \"false\",\n        \"chart_kind\"\
-            : \"line\",\n        \"chart_title\": \"Bieu do\",\n        \"chart_data\"\
-            : \"0\",\n        \"chart_labels\": \"-\",\n    }\n    parsed = _obj(llm_text)\n\
-            \    if not parsed:\n        return empty\n    msg = str(parsed.get(\"answer\"\
-            ) or \"\").strip() or empty[\"user_message\"]\n    chart = parsed.get(\"\
-            chart\")\n    if not isinstance(chart, dict):\n        out = dict(empty)\n\
-            \        out[\"user_message\"] = msg\n        return out\n    title = chart.get(\"\
-            title\")\n    if isinstance(title, dict):\n        title = title.get(\"\
-            text\")\n    title = str(title or \"Bieu do\").strip() or \"Bieu do\"\n\
-            \    labels = chart.get(\"labels\") or chart.get(\"categories\") or []\n\
-            \    values = chart.get(\"values\") or chart.get(\"data\") or []\n    xa\
-            \ = chart.get(\"xAxis\")\n    if isinstance(xa, dict) and not labels:\n\
-            \        labels = xa.get(\"data\") or []\n    series = chart.get(\"series\"\
-            )\n    stype = str(chart.get(\"type\") or \"\")\n    if isinstance(series,\
-            \ list) and series and isinstance(series[0], dict):\n        stype = str(series[0].get(\"\
-            type\") or stype)\n        if not values:\n            values = series[0].get(\"\
-            data\") or []\n    labs = []\n    nums = []\n    if isinstance(values, list)\
-            \ and values and isinstance(values[0], dict):\n        for item in values:\n\
-            \            if not isinstance(item, dict):\n                continue\n\
-            \            f = _num(item.get(\"value\"))\n            if f is None:\n\
-            \                continue\n            labs.append(str(item.get(\"name\"\
-            ) or \"\"))\n            nums.append(f)\n    elif isinstance(labels, list)\
-            \ and isinstance(values, list):\n        n = min(len(labels), len(values))\n\
-            \        i = 0\n        while i < n:\n            f = _num(values[i])\n\
-            \            if f is not None:\n                labs.append(str(labels[i]\
-            \ or \"\"))\n                nums.append(f)\n            i += 1\n    labs,\
-            \ nums = _collapse(labs, nums)\n    if len(nums) < 2:\n        out = dict(empty)\n\
-            \        out[\"user_message\"] = msg\n        return out\n    raw_kind =\
-            \ stype.strip().lower()\n    if raw_kind in (\"pie\", \"donut\", \"rose\"\
-            ):\n        kind = \"pie\"\n    elif raw_kind in (\"bar\", \"column\"):\n\
-            \        kind = \"bar\"\n    else:\n        kind = \"line\"\n    return\
-            \ {\n        \"user_message\": msg,\n        \"has_chart\": \"true\",\n\
-            \        \"chart_kind\": kind,\n        \"chart_title\": title,\n      \
-            \  \"chart_data\": \";\".join(nums),\n        \"chart_labels\": \";\".join(labs),\n\
-            \    }\n"
+          code: "import json\n\ndef _num(v):\n    if v is None or isinstance(v, bool):\n        return None\n    if isinstance(v, (int, float)):\n        return float(v)\n    s = str(v).strip().replace(\",\", \"\").replace(\" \", \"\")\n    try:\n        return float(s)\n    except ValueError:\n        return None\n\ndef _strip_fence(raw):\n    t = (raw or \"\").strip()\n    if t.startswith(\"```\"):\n        n = t.find(\"\\n\")\n        t = t[n + 1 :] if n >= 0 else t[3:]\n        if t.endswith(\"```\"):\n            t = t[:-3].strip()\n    return t\n\ndef _obj(text):\n    t = _strip_fence(text)\n    try:\n        parsed = json.loads(t)\n        if isinstance(parsed, dict):\n            return parsed\n    except json.JSONDecodeError:\n        pass\n    a = t.find(\"{\")\n    b = t.rfind(\"}\")\n    if a >= 0 and b > a:\n        try:\n            parsed = json.loads(t[a : b + 1])\n            if isinstance(parsed, dict):\n                return parsed\n        except json.JSONDecodeError:\n            pass\n    return None\n\ndef _collapse(labs, nums):\n    \"\"\"Sum values for the same label so ECharts pie does not error on duplicates.\"\"\"\n    acc = []\n    idx = {}\n    for lab, num in zip(labs, nums):\n        key = (lab or \"\").strip() or \"-\"\n        f = float(num)\n        if key in idx:\n            i = idx[key]\n            acc[i][1] += f\n        else:\n            idx[key] = len(acc)\n            acc.append([key, f])\n    out_labs = []\n    out_nums = []\n    for key, f in acc:\n        out_labs.append(key.replace(\";\", \",\"))\n        out_nums.append(str(int(f) if f == int(f) else f))\n    return out_labs, out_nums\n\ndef _status_label(value):\n    labels = {\n        \"new\": \"Mới\",\n        \"in_progress\": \"Đang xử lý\",\n        \"on_hold\": \"Tạm dừng\",\n        \"closed\": \"Hoàn thành\",\n        \"litigation\": \"Tố tụng\",\n        \"legal_service\": \"Dịch vụ pháp lý\",\n    }\n    return labels.get(str(value), str(value) if value is not None else \"\")\n\ndef _invented_token(msg, blob):\n    import re\n    for tok in re.findall(r\"\\b(?:VV-?\\d+|[A-Z]{1,8}(?:-[A-Z0-9]+)+)\\b\", msg or \"\"):\n        if tok not in (blob or \"\"):\n            return True\n    return False\n\ndef _aggregate_row(rows):\n    if len(rows) != 1:\n        return False\n    keys = list(rows[0].keys())\n    if not keys or any(k in (\"code\", \"name\", \"title\") for k in keys):\n        return False\n    return all(_num(rows[0][k]) is not None for k in keys)\n\ndef _markdown_table(rows):\n    headers = {\"code\": \"Mã\", \"name\": \"Tên\", \"status\": \"Trạng thái\", \"title\": \"Tiêu đề\", \"category\": \"Loại\"}\n    keys = []\n    for row in rows:\n        for key in row.keys():\n            if key not in keys:\n                keys.append(key)\n    if not keys:\n        return \"\"\n    head = \"|\" + \"|\".join(_header(k) for k in keys) + \"|\"\n    sep = \"|\" + \"|\".join(\"---\" for _ in keys) + \"|\"\n    lines = [head, sep]\n    for row in rows:\n        cells = []\n        for key in keys:\n            cell = _status_label(row.get(key)).replace(\"|\", \"/\").replace(\"\\n\", \" \")\n            cells.append(cell)\n        lines.append(\"|\" + \"|\".join(cells) + \"|\")\n    return \"\\n\".join(lines)\n\ndef _header(key):\n    labels = {\n        \"code\": \"Mã\",\n        \"name\": \"Tên\",\n        \"status\": \"Trạng thái\",\n        \"title\": \"Tiêu đề\",\n        \"category\": \"Loại\",\n        \"total\": \"Tổng\",\n        \"total_cases\": \"Số lượng\",\n        \"total_revenue\": \"Tổng\",\n        \"count\": \"Số lượng\",\n    }\n    key = str(key)\n    if key in labels:\n        return labels[key]\n    if \" \" in key:\n        return key\n    return \"Kết quả\"\n\ndef _render_data(data_json):\n    try:\n        rows = json.loads(data_json or \"[]\")\n    except Exception:\n        return \"Không có dữ liệu phù hợp.\"\n    if not isinstance(rows, list):\n        return \"Không có dữ liệu phù hợp.\"\n    rows = [row for row in rows if isinstance(row, dict)]\n    if not rows:\n        return \"Không có dữ liệu phù hợp.\"\n    if _aggregate_row(rows):\n        lines = []\n        for key, value in rows[0].items():\n            shown = _status_label(value)\n            if isinstance(value, float) and value == int(value):\n                shown = str(int(value))\n            lines.append(_header(key) + \": \" + shown)\n        return \"\\n\".join(lines)\n    return \"Có \" + str(len(rows)) + \" kết quả:\\n\\n\" + _markdown_table(rows)\n\ndef _chart_numbers_in_data(nums, data_json):\n    import re\n    digits = re.sub(r\"\\D\", \"\", data_json or \"\")\n    for num in nums:\n        token = re.sub(r\"\\D\", \"\", str(num))\n        if token and token not in digits:\n            return False\n    return True\n\ndef main(llm_text=\"\", data_json=\"[]\"):\n    empty = {\n        \"user_message\": (llm_text or \"\").strip() or \"Chưa có dữ liệu phù hợp.\",\n        \"has_chart\": \"false\",\n        \"chart_kind\": \"line\",\n        \"chart_title\": \"Biểu đồ\",\n        \"chart_data\": \"0\",\n        \"chart_labels\": \"-\",\n    }\n    parsed = _obj(llm_text)\n    if not parsed:\n        out = dict(empty)\n        out[\"user_message\"] = _render_data(data_json)\n        out[\"has_chart\"] = \"false\"\n        return out\n    msg = _render_data(data_json)\n    chart = parsed.get(\"chart\")\n    if not isinstance(chart, dict):\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    title = chart.get(\"title\")\n    if isinstance(title, dict):\n        title = title.get(\"text\")\n    title = str(title or \"Biểu đồ\").strip() or \"Biểu đồ\"\n    labels = chart.get(\"labels\") or chart.get(\"categories\") or []\n    values = chart.get(\"values\") or chart.get(\"data\") or []\n    xa = chart.get(\"xAxis\")\n    if isinstance(xa, dict) and not labels:\n        labels = xa.get(\"data\") or []\n    series = chart.get(\"series\")\n    stype = str(chart.get(\"type\") or \"\")\n    if isinstance(series, list) and series and isinstance(series[0], dict):\n        stype = str(series[0].get(\"type\") or stype)\n        if not values:\n            values = series[0].get(\"data\") or []\n    labs = []\n    nums = []\n    if isinstance(values, list) and values and isinstance(values[0], dict):\n        for item in values:\n            if not isinstance(item, dict):\n                continue\n            f = _num(item.get(\"value\"))\n            if f is None:\n                continue\n            labs.append(str(item.get(\"name\") or \"\"))\n            nums.append(f)\n    elif isinstance(labels, list) and isinstance(values, list):\n        n = min(len(labels), len(values))\n        i = 0\n        while i < n:\n            f = _num(values[i])\n            if f is not None:\n                labs.append(str(labels[i] or \"\"))\n                nums.append(f)\n            i += 1\n    labs, nums = _collapse(labs, nums)\n    if len(nums) < 2 or not _chart_numbers_in_data(nums, data_json):\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    raw_kind = stype.strip().lower()\n    if raw_kind in (\"pie\", \"donut\", \"rose\"):\n        kind = \"pie\"\n    elif raw_kind in (\"bar\", \"column\"):\n        kind = \"bar\"\n    else:\n        kind = \"line\"\n    return {\n        \"user_message\": msg,\n        \"has_chart\": \"true\",\n        \"chart_kind\": kind,\n        \"chart_title\": title,\n        \"chart_data\": \";\".join(nums),\n        \"chart_labels\": \";\".join(labs),\n    }\n"
           code_language: python3
           desc: Map LLM JSON answer/chart sang bien ECharts title data labels
           outputs:
@@ -2316,6 +2427,11 @@ workflow:
                 - text
               value_type: string
               variable: llm_text
+            - value_selector:
+                - parse_execute_response
+                - data_json
+              value_type: string
+              variable: data_json
         height: 80
         id: parse_chart_payload
         position:
@@ -2660,65 +2776,7 @@ workflow:
         width: 242
         zIndex: 0
       - data:
-          code: "import json\n\ndef _num(v):\n    if v is None or isinstance(v, bool):\n\
-            \        return None\n    if isinstance(v, (int, float)):\n        return\
-            \ float(v)\n    s = str(v).strip().replace(\",\", \"\").replace(\" \", \"\
-            \")\n    try:\n        return float(s)\n    except ValueError:\n       \
-            \ return None\n\ndef _strip_fence(raw):\n    t = (raw or \"\").strip()\n\
-            \    if t.startswith(\"```\"):\n        n = t.find(\"\\n\")\n        t =\
-            \ t[n + 1 :] if n >= 0 else t[3:]\n        if t.endswith(\"```\"):\n   \
-            \         t = t[:-3].strip()\n    return t\n\ndef _obj(text):\n    t = _strip_fence(text)\n\
-            \    try:\n        parsed = json.loads(t)\n        if isinstance(parsed,\
-            \ dict):\n            return parsed\n    except json.JSONDecodeError:\n\
-            \        pass\n    a = t.find(\"{\")\n    b = t.rfind(\"}\")\n    if a >=\
-            \ 0 and b > a:\n        try:\n            parsed = json.loads(t[a : b +\
-            \ 1])\n            if isinstance(parsed, dict):\n                return\
-            \ parsed\n        except json.JSONDecodeError:\n            pass\n    return\
-            \ None\n\ndef _collapse(labs, nums):\n    \"\"\"Sum values for the same\
-            \ label so ECharts pie does not error on duplicates.\"\"\"\n    acc = []\n\
-            \    idx = {}\n    for lab, num in zip(labs, nums):\n        key = (lab\
-            \ or \"\").strip() or \"-\"\n        f = float(num)\n        if key in idx:\n\
-            \            i = idx[key]\n            acc[i][1] += f\n        else:\n \
-            \           idx[key] = len(acc)\n            acc.append([key, f])\n    out_labs\
-            \ = []\n    out_nums = []\n    for key, f in acc:\n        out_labs.append(key.replace(\"\
-            ;\", \",\"))\n        out_nums.append(str(int(f) if f == int(f) else f))\n\
-            \    return out_labs, out_nums\n\ndef main(llm_text=\"\"):\n    empty =\
-            \ {\n        \"user_message\": (llm_text or \"\").strip() or \"Khong co\
-            \ du lieu phu hop.\",\n        \"has_chart\": \"false\",\n        \"chart_kind\"\
-            : \"line\",\n        \"chart_title\": \"Bieu do\",\n        \"chart_data\"\
-            : \"0\",\n        \"chart_labels\": \"-\",\n    }\n    parsed = _obj(llm_text)\n\
-            \    if not parsed:\n        return empty\n    msg = str(parsed.get(\"answer\"\
-            ) or \"\").strip() or empty[\"user_message\"]\n    chart = parsed.get(\"\
-            chart\")\n    if not isinstance(chart, dict):\n        out = dict(empty)\n\
-            \        out[\"user_message\"] = msg\n        return out\n    title = chart.get(\"\
-            title\")\n    if isinstance(title, dict):\n        title = title.get(\"\
-            text\")\n    title = str(title or \"Bieu do\").strip() or \"Bieu do\"\n\
-            \    labels = chart.get(\"labels\") or chart.get(\"categories\") or []\n\
-            \    values = chart.get(\"values\") or chart.get(\"data\") or []\n    xa\
-            \ = chart.get(\"xAxis\")\n    if isinstance(xa, dict) and not labels:\n\
-            \        labels = xa.get(\"data\") or []\n    series = chart.get(\"series\"\
-            )\n    stype = str(chart.get(\"type\") or \"\")\n    if isinstance(series,\
-            \ list) and series and isinstance(series[0], dict):\n        stype = str(series[0].get(\"\
-            type\") or stype)\n        if not values:\n            values = series[0].get(\"\
-            data\") or []\n    labs = []\n    nums = []\n    if isinstance(values, list)\
-            \ and values and isinstance(values[0], dict):\n        for item in values:\n\
-            \            if not isinstance(item, dict):\n                continue\n\
-            \            f = _num(item.get(\"value\"))\n            if f is None:\n\
-            \                continue\n            labs.append(str(item.get(\"name\"\
-            ) or \"\"))\n            nums.append(f)\n    elif isinstance(labels, list)\
-            \ and isinstance(values, list):\n        n = min(len(labels), len(values))\n\
-            \        i = 0\n        while i < n:\n            f = _num(values[i])\n\
-            \            if f is not None:\n                labs.append(str(labels[i]\
-            \ or \"\"))\n                nums.append(f)\n            i += 1\n    labs,\
-            \ nums = _collapse(labs, nums)\n    if len(nums) < 2:\n        out = dict(empty)\n\
-            \        out[\"user_message\"] = msg\n        return out\n    raw_kind =\
-            \ stype.strip().lower()\n    if raw_kind in (\"pie\", \"donut\", \"rose\"\
-            ):\n        kind = \"pie\"\n    elif raw_kind in (\"bar\", \"column\"):\n\
-            \        kind = \"bar\"\n    else:\n        kind = \"line\"\n    return\
-            \ {\n        \"user_message\": msg,\n        \"has_chart\": \"true\",\n\
-            \        \"chart_kind\": kind,\n        \"chart_title\": title,\n      \
-            \  \"chart_data\": \";\".join(nums),\n        \"chart_labels\": \";\".join(labs),\n\
-            \    }\n"
+          code: "import json\n\ndef _num(v):\n    if v is None or isinstance(v, bool):\n        return None\n    if isinstance(v, (int, float)):\n        return float(v)\n    s = str(v).strip().replace(\",\", \"\").replace(\" \", \"\")\n    try:\n        return float(s)\n    except ValueError:\n        return None\n\ndef _strip_fence(raw):\n    t = (raw or \"\").strip()\n    if t.startswith(\"```\"):\n        n = t.find(\"\\n\")\n        t = t[n + 1 :] if n >= 0 else t[3:]\n        if t.endswith(\"```\"):\n            t = t[:-3].strip()\n    return t\n\ndef _obj(text):\n    t = _strip_fence(text)\n    try:\n        parsed = json.loads(t)\n        if isinstance(parsed, dict):\n            return parsed\n    except json.JSONDecodeError:\n        pass\n    a = t.find(\"{\")\n    b = t.rfind(\"}\")\n    if a >= 0 and b > a:\n        try:\n            parsed = json.loads(t[a : b + 1])\n            if isinstance(parsed, dict):\n                return parsed\n        except json.JSONDecodeError:\n            pass\n    return None\n\ndef _collapse(labs, nums):\n    \"\"\"Sum values for the same label so ECharts pie does not error on duplicates.\"\"\"\n    acc = []\n    idx = {}\n    for lab, num in zip(labs, nums):\n        key = (lab or \"\").strip() or \"-\"\n        f = float(num)\n        if key in idx:\n            i = idx[key]\n            acc[i][1] += f\n        else:\n            idx[key] = len(acc)\n            acc.append([key, f])\n    out_labs = []\n    out_nums = []\n    for key, f in acc:\n        out_labs.append(key.replace(\";\", \",\"))\n        out_nums.append(str(int(f) if f == int(f) else f))\n    return out_labs, out_nums\n\ndef _status_label(value):\n    labels = {\n        \"new\": \"Mới\",\n        \"in_progress\": \"Đang xử lý\",\n        \"on_hold\": \"Tạm dừng\",\n        \"closed\": \"Hoàn thành\",\n        \"litigation\": \"Tố tụng\",\n        \"legal_service\": \"Dịch vụ pháp lý\",\n    }\n    return labels.get(str(value), str(value) if value is not None else \"\")\n\ndef _invented_token(msg, blob):\n    import re\n    for tok in re.findall(r\"\\b(?:VV-?\\d+|[A-Z]{1,8}(?:-[A-Z0-9]+)+)\\b\", msg or \"\"):\n        if tok not in (blob or \"\"):\n            return True\n    return False\n\ndef _aggregate_row(rows):\n    if len(rows) != 1:\n        return False\n    keys = list(rows[0].keys())\n    if not keys or any(k in (\"code\", \"name\", \"title\") for k in keys):\n        return False\n    return all(_num(rows[0][k]) is not None for k in keys)\n\ndef _markdown_table(rows):\n    headers = {\"code\": \"Mã\", \"name\": \"Tên\", \"status\": \"Trạng thái\", \"title\": \"Tiêu đề\", \"category\": \"Loại\"}\n    keys = []\n    for row in rows:\n        for key in row.keys():\n            if key not in keys:\n                keys.append(key)\n    if not keys:\n        return \"\"\n    head = \"|\" + \"|\".join(_header(k) for k in keys) + \"|\"\n    sep = \"|\" + \"|\".join(\"---\" for _ in keys) + \"|\"\n    lines = [head, sep]\n    for row in rows:\n        cells = []\n        for key in keys:\n            cell = _status_label(row.get(key)).replace(\"|\", \"/\").replace(\"\\n\", \" \")\n            cells.append(cell)\n        lines.append(\"|\" + \"|\".join(cells) + \"|\")\n    return \"\\n\".join(lines)\n\ndef _header(key):\n    labels = {\n        \"code\": \"Mã\",\n        \"name\": \"Tên\",\n        \"status\": \"Trạng thái\",\n        \"title\": \"Tiêu đề\",\n        \"category\": \"Loại\",\n        \"total\": \"Tổng\",\n        \"total_cases\": \"Số lượng\",\n        \"total_revenue\": \"Tổng\",\n        \"count\": \"Số lượng\",\n    }\n    key = str(key)\n    if key in labels:\n        return labels[key]\n    if \" \" in key:\n        return key\n    return \"Kết quả\"\n\ndef _render_data(data_json):\n    try:\n        rows = json.loads(data_json or \"[]\")\n    except Exception:\n        return \"Không có dữ liệu phù hợp.\"\n    if not isinstance(rows, list):\n        return \"Không có dữ liệu phù hợp.\"\n    rows = [row for row in rows if isinstance(row, dict)]\n    if not rows:\n        return \"Không có dữ liệu phù hợp.\"\n    if _aggregate_row(rows):\n        lines = []\n        for key, value in rows[0].items():\n            shown = _status_label(value)\n            if isinstance(value, float) and value == int(value):\n                shown = str(int(value))\n            lines.append(_header(key) + \": \" + shown)\n        return \"\\n\".join(lines)\n    return \"Có \" + str(len(rows)) + \" kết quả:\\n\\n\" + _markdown_table(rows)\n\ndef _chart_numbers_in_data(nums, data_json):\n    import re\n    digits = re.sub(r\"\\D\", \"\", data_json or \"\")\n    for num in nums:\n        token = re.sub(r\"\\D\", \"\", str(num))\n        if token and token not in digits:\n            return False\n    return True\n\ndef main(llm_text=\"\", data_json=\"[]\"):\n    empty = {\n        \"user_message\": (llm_text or \"\").strip() or \"Chưa có dữ liệu phù hợp.\",\n        \"has_chart\": \"false\",\n        \"chart_kind\": \"line\",\n        \"chart_title\": \"Biểu đồ\",\n        \"chart_data\": \"0\",\n        \"chart_labels\": \"-\",\n    }\n    parsed = _obj(llm_text)\n    if not parsed:\n        out = dict(empty)\n        out[\"user_message\"] = _render_data(data_json)\n        out[\"has_chart\"] = \"false\"\n        return out\n    msg = _render_data(data_json)\n    chart = parsed.get(\"chart\")\n    if not isinstance(chart, dict):\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    title = chart.get(\"title\")\n    if isinstance(title, dict):\n        title = title.get(\"text\")\n    title = str(title or \"Biểu đồ\").strip() or \"Biểu đồ\"\n    labels = chart.get(\"labels\") or chart.get(\"categories\") or []\n    values = chart.get(\"values\") or chart.get(\"data\") or []\n    xa = chart.get(\"xAxis\")\n    if isinstance(xa, dict) and not labels:\n        labels = xa.get(\"data\") or []\n    series = chart.get(\"series\")\n    stype = str(chart.get(\"type\") or \"\")\n    if isinstance(series, list) and series and isinstance(series[0], dict):\n        stype = str(series[0].get(\"type\") or stype)\n        if not values:\n            values = series[0].get(\"data\") or []\n    labs = []\n    nums = []\n    if isinstance(values, list) and values and isinstance(values[0], dict):\n        for item in values:\n            if not isinstance(item, dict):\n                continue\n            f = _num(item.get(\"value\"))\n            if f is None:\n                continue\n            labs.append(str(item.get(\"name\") or \"\"))\n            nums.append(f)\n    elif isinstance(labels, list) and isinstance(values, list):\n        n = min(len(labels), len(values))\n        i = 0\n        while i < n:\n            f = _num(values[i])\n            if f is not None:\n                labs.append(str(labels[i] or \"\"))\n                nums.append(f)\n            i += 1\n    labs, nums = _collapse(labs, nums)\n    if len(nums) < 2 or not _chart_numbers_in_data(nums, data_json):\n        out = dict(empty)\n        out[\"user_message\"] = msg\n        return out\n    raw_kind = stype.strip().lower()\n    if raw_kind in (\"pie\", \"donut\", \"rose\"):\n        kind = \"pie\"\n    elif raw_kind in (\"bar\", \"column\"):\n        kind = \"bar\"\n    else:\n        kind = \"line\"\n    return {\n        \"user_message\": msg,\n        \"has_chart\": \"true\",\n        \"chart_kind\": kind,\n        \"chart_title\": title,\n        \"chart_data\": \";\".join(nums),\n        \"chart_labels\": \";\".join(labs),\n    }\n"
           code_language: python3
           desc: Map LLM JSON answer/chart sang bien ECharts title data labels
           outputs:
@@ -2749,6 +2807,11 @@ workflow:
                 - text
               value_type: string
               variable: llm_text
+            - value_selector:
+                - parse_execute_response_retry
+                - data_json
+              value_type: string
+              variable: data_json
         height: 80
         id: parse_chart_payload_retry
         position:

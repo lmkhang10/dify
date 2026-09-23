@@ -1,12 +1,12 @@
 # Luật SQL tối-thiểu-bảng (bắt buộc)
 
-LFMS từ chối **cả câu** nếu một bảng trong FROM/JOIN không thuộc quyền (`TABLE_DENIED`). Luật sư / kế toán / nhân viên thường **không** có module Organizations. JOIN `organizations` lấy tên văn phòng → fail cả query doanh thu.
+LFMS từ chối **cả câu** nếu một bảng trong FROM/JOIN không có trên thẻ quyền của câu hỏi (`TABLE_DENIED`). Thẻ đọc ma trận lúc chạy. Không JOIN `organizations` chỉ để lấy tên văn phòng.
 
 ## Tối thiểu bảng
 
 1. Chỉ FROM/JOIN bảng cần cột. Tên văn phòng: ghi trong tóm tắt "thuộc văn phòng bạn" — **không** JOIN `organizations`.
 2. Không JOIN `departments` chỉ để lấy tên. Trả `department_id`. Lọc **theo tên loại vụ** thì JOIN `case_types` (`cases.case_type_id`) + `LOWER(case_types.name) LIKE …` — không đếm hết `category = 'litigation'`.
-3. **Cấm JOIN `users` cho "tôi / liên quan tôi / LS phụ trách / tôi phụ trách".** LFMS đã lọc Của tôi, **gồm `cases.lead_lawyer_id`**. Nhân viên thường không có module Users — JOIN `users` → `TABLE_DENIED`, mất cả vụ bạn phụ trách. Trả `lead_lawyer_id`. JOIN users chỉ khi hỏi **tên** nhân sự khác và module Users được phép.
+3. **Cấm JOIN `users` cho "tôi / liên quan tôi / LS phụ trách / tôi phụ trách".** Bảng trong mục Của tôi của thẻ quyền đã được LFMS lọc. Trả id. JOIN `users` chỉ khi bảng đó có trên thẻ và câu hỏi nêu tên người khác. Không có `users` trên thẻ thì không đoán id.
 4. Tenant filter và Của tôi do LFMS tự chèn. Không viết `WHERE organization_id = …`. **Cấm** `:current_user_id` / mọi placeholder PDO — PDO sẽ vỡ (`HY093`) và trả "Không chạy được truy vấn."
 5. Ưu tiên `report_daily_*` cho câu tổng hợp (doanh thu kỳ, backlog vụ, pipeline lead, giờ nhân sự). Không SUM stock.
 6. Subquery `IN` / `EXISTS` / derived table được LFMS rewrite tenant từng SELECT. Cấm UNION, WITH, SELECT *, INSERT/UPDATE/DELETE. JOIN phẳng vẫn ưu tiên.
@@ -15,7 +15,9 @@ LFMS từ chối **cả câu** nếu một bảng trong FROM/JOIN không thuộc
 
 ## Của tôi / liên quan tôi
 
-Không viết `WHERE lead_lawyer_id = …` hay JOIN `users`/`case_team`. LFMS Mine = luật sư phụ trách OR người tạo OR đội OR khách (assigned_to/created_by). SELECT `code, name, status` (+ loại nếu JOIN case_types).
+Không viết `WHERE lead_lawyer_id = …` hay JOIN `users`/`case_team` cho "của tôi". LFMS tự lọc bảng trong mục Của tôi. SELECT `code, name, status` (+ loại nếu JOIN case_types).
+
+Hỏi vụ của **một người nêu tên** (không phải tôi): chỉ `JOIN users` khi `users` có trên thẻ quyền. Không có thì trả `UNSUPPORTED_PERSON`. Không gán `lead_lawyer_id = <số>` — LFMS trả `ACTOR_ID_DENIED` khi số không có trong câu hỏi.
 
 ## Tên khách / công ty
 
@@ -43,6 +45,21 @@ Công nợ **một khách**: `SUM(p.amount)` đợt `pending` + `in` (JOIN clien
 ## Bảng không whitelist — không dạy, không query
 
 service_plans, organization_subscriptions, case_checklist_items, workflow_versions, workflow_keys, `vanna_*`, password_reset_tokens, sessions, roles, role_user, `zl_*`, official_dispatch_histories, handbook_keywords, report_daily_finance_by_dim.
+
+## Cột không tồn tại — cấm bịa
+
+Chỉ dùng cột ghi trong file bảng. Không có tên trong danh sách thì không SELECT, không đổi sang tên gần nghĩa.
+
+Đã xóa / chưa từng có:
+
+- cases: `fee_estimate`, `billing_method`, `area`, `on_hold` (boolean), `amount`
+- contracts: `type`, `status`, `template_id`, `amount`, `signed_at`, `total_amount`
+- clients: `city`, `district`, `ward`, `representative_id_number`
+- case_types: `description`, `area`
+- report_daily_cases: `reopened_count`
+- tasks: `status`, `assigned_to`
+
+Phí một vụ = `contracts.payment_amount` với `contracts.case_id = cases.id`.
 
 ## Cột luôn cấm
 

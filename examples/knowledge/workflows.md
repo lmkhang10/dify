@@ -13,6 +13,7 @@ Columns:
 - source_definition_id (bigint, nullable)
 - current_version_id (bigint, nullable) — trả id, không JOIN versions
 - created_by (bigint, nullable)
+- color (varchar), icon (varchar)
 - created_at, updated_at
 
 Hồ sơ ghim quy trình qua `cases.workflow_definition_id` / `workflow_version_id`.

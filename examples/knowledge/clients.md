@@ -12,7 +12,6 @@ Columns:
 - name (varchar)
 - company (varchar, nullable)
 - gender (enum: male, female, other)
-- city, district, ward
 - source (enum: referral, website, walk_in, social_media, advertisement, other)
 - status (enum: active, inactive, potential, archived)
 - lead_stage (enum: new, consulting, proposal, negotiating, won, lost)
@@ -22,7 +21,9 @@ Columns:
 - created_at, updated_at
 - deleted_at — luôn `deleted_at IS NULL`
 
-PII (cần SeePii): email, phone, phone_secondary, address, id_number, id_issued_date, id_issued_place, date_of_birth, tax_code, business_registration_number, representative_name, representative_id_number.
+Không có cột `city`, `district`, `ward`. Địa chỉ là `address` (PII). Tỉnh/xã là id: `old_province_id`, `old_district_id`, `old_ward_id`, `new_province_id`, `new_ward_id` — không JOIN bảng địa giới (không whitelist).
+
+PII (cần SeePii): email, phone, phone_secondary, address, id_number, id_issued_date, id_issued_place, date_of_birth, tax_code, business_registration_number, representative_name. Không có `representative_id_number`.
 
 Tìm theo tên: `LOWER(name) LIKE CONCAT('%', LOWER('an khang'), '%')` — không `name = 'TM AN Khang'`.
 

@@ -2,34 +2,46 @@
 
 Hồ sơ / vụ việc. Shared: CasesLitigation → `category = 'litigation'`; CasesLegalService → `category = 'legal_service'`.
 
+Chỉ SELECT cột dưới đây. Cột không có trong danh sách **không tồn tại** — cấm đoán.
+
 Columns:
 
 - id (bigint, PK)
 - organization_id (bigint)
-- code (varchar)
+- code (varchar) — mã vụ, copy nguyên (vd. D2-VV-003)
 - name (varchar)
 - client_id (bigint, FK clients.id)
-- case_type_id (bigint, FK case_types.id) — lọc theo tên loại: JOIN case_types + LIKE name; không JOIN chỉ để hiện tên trên list
+- case_type_id (bigint, FK case_types.id) — lọc theo tên loại: JOIN case_types + LIKE name
 - category (varchar): **litigation** | **legal_service**
-- area (varchar)
-- status (varchar): **new** | **in_progress** | **on_hold** | **closed** — không còn cột boolean `on_hold`
-- held_at (timestamp, nullable) — thời điểm tạm dừng khi status = on_hold
+- status (varchar): **new** | **in_progress** | **on_hold** | **closed**
+- priority (varchar): **high** | **medium** | **low** — không có `emergency` (emergency chỉ thuộc tasks)
 - hold_reason (text, nullable)
-- priority (varchar)
+- held_at (timestamp, nullable) — lúc tạm dừng khi status = on_hold
+- held_by (bigint, nullable)
 - open_date (date)
 - deadline (date)
 - closed_at (timestamp, nullable)
-- fee_estimate (bigint, nullable)
-- billing_method (varchar, nullable)
+- reopen_count (int)
 - description, notes (text)
-- lead_lawyer_id (bigint, FK users.id) — "liên quan tôi" **không** JOIN users; LFMS đã gồm cột này trong Của tôi. Trả id.
+- lead_lawyer_id (bigint, FK users.id) — "liên quan tôi" **không** JOIN users. Trả id.
 - created_by (bigint)
-- workflow_definition_id (bigint, nullable) — chỉ tên cột; không query workflow_versions / case_checklist_items
+- stage (varchar, nullable) — giai đoạn theo quy trình của vụ, không phải enum cố định. SELECT nguyên giá trị. Không bịa `filing` / `trial`.
+- outcome (varchar, nullable) — kết quả khi đóng, theo quy trình. SELECT nguyên. Không bịa `won` / `lost`.
+- outcome_note (text, nullable)
+- workflow_definition_id (bigint, nullable) — không JOIN workflow_versions
 - workflow_version_id (bigint, nullable) — không JOIN bảng phiên bản
+- stage_due_at (date, nullable)
+- client_notified_at (timestamp, nullable)
 - created_at, updated_at
 - deleted_at — luôn `deleted_at IS NULL`
 
-Cấm: cột `on_hold` boolean (đã drop). Lọc tạm dừng: `status = 'on_hold'`.
+## Cột đã xóa — cấm SELECT
+
+`fee_estimate`, `billing_method`, `area`, `on_hold` (boolean), `legal_area_id`, `amount`, `total_amount`.
+
+Phí / doanh thu của vụ **không nằm trên cases**. JOIN `contracts` ON `contracts.case_id = cases.id` và dùng `contracts.payment_amount`.
+
+Lọc tạm dừng: `status = 'on_hold'`.
 
 Sample:
 
@@ -37,4 +49,4 @@ Sample:
 - Đếm theo tên loại: SELECT COUNT(*) AS cnt FROM cases cs INNER JOIN case_types ct ON ct.id = cs.case_type_id WHERE cs.deleted_at IS NULL AND LOWER(ct.name) LIKE '%thu hồi nợ%'
 - Quá hạn chưa đóng: SELECT id, code, name, deadline FROM cases WHERE deadline < CURDATE() AND status <> 'closed' AND deleted_at IS NULL LIMIT 100
 
-Liệt kê: SELECT `code`, `name`, `status`. Trả lời copy nguyên `code` từ JSON. Không bịa / không rút mã (cấm VV001 nếu JSON không có đúng chuỗi đó).
+Liệt kê: SELECT `code`, `name`, `status`. Trả lời copy nguyên `code`. Cột trạng thái in nhãn: `new` → Mới, `in_progress` → Đang xử lý, `on_hold` → Tạm dừng, `closed` → Hoàn thành. Ưu tiên: `high` → Cao, `medium` → Trung bình, `low` → Thấp.

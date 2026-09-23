@@ -23,7 +23,7 @@ Thu tháng: SUM(collected_in) WHERE date trong tháng. Công nợ hiện tại: 
 
 ## report_daily_cases
 
-FLOW: opened_count, closed_count, reopened_count
+FLOW: opened_count, closed_count (không có reopened_count — số mở lại nằm ở cases.reopen_count)
 STOCK: backlog_count, overdue_count, due_soon_count, on_hold_count, on_hold_over_30_count
 cycle_sum_days, cycle_n
 

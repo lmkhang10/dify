@@ -37,7 +37,7 @@ LFMS tự chèn lọc tenant (`organization_id`) — SQL sinh ra **không** JOIN
 - payments.contract_id = contracts.id
 - tasks.case_id = cases.id
 - task_assignees.task_id = tasks.id
-- cases.lead_lawyer_id = users.id (chỉ khi cần tên luật sư và module Users được phép)
+- cases.lead_lawyer_id = users.id (chỉ khi cần tên luật sư và `users` có trên thẻ quyền)
 - clients.assigned_to = users.id
 - handbook_articles.category_id = handbook_categories.id
 

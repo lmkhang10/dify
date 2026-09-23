@@ -6,7 +6,8 @@ Columns:
 
 - id (bigint, PK)
 - organization_id (bigint)
-- direction (varchar, enum `DispatchDirection`): **incoming** | **outgoing** — **không có** `inbound`/`outbound`/`in`/`out`
+- direction (varchar): **incoming** | **outgoing** — **không có** `inbound`/`outbound`/`in`/`out`
+- is_urgent (tinyint)
 - code (varchar, nullable)
 - title (varchar)
 - summary (text)
